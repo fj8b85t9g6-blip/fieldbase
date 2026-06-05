@@ -489,11 +489,11 @@ def detect_and_save_conflicts(company_id):
     db.session.commit()
 
 # ─────────────────────────────────────────
-# INIT
+# INIT — runs on every startup (Gunicorn + direct)
 # ─────────────────────────────────────────
 
+with app.app_context():
+    db.create_all()
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        print("FieldBase database initialized.")
     app.run(debug=True, port=5050)
