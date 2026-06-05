@@ -3,9 +3,14 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 import os
 
-app = Flask(__name__, template_folder='../frontend/templates', static_folder='../frontend/static')
-app.secret_key = 'fieldbase_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///../database/fieldbase.db'
+_BASE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_BASE)
+
+app = Flask(__name__,
+    template_folder=os.path.join(_ROOT, 'frontend', 'templates'),
+    static_folder=os.path.join(_ROOT, 'frontend', 'static'))
+app.secret_key = os.environ.get('SECRET_KEY', 'fieldbase_secret_key')
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(_ROOT, 'database', 'fieldbase.db')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
