@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FieldBase — Job Brief Generator</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+  header { background: #1e3a5f; padding: 18px 40px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+  header h1 { font-size: 22px; color: #ffffff; font-weight: 700; letter-spacing: 1px; }
+  header span { color: #a8c4e0; font-size: 14px; }
+  .container { max-width: 900px; margin: 32px auto; padding: 0 20px; }
+  .card { background: #ffffff; border: 1px solid #dde3ec; border-radius: 10px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .card h2 { color: #1e3a5f; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e8edf4; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; color: #5a6a7e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  input, select, textarea { background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 6px; padding: 9px 13px; color: #1a1a2e; font-size: 14px; font-family: inherit; outline: none; transition: border 0.2s, box-shadow 0.2s; }
+  input:focus, select:focus, textarea:focus { border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.1); background: #fff; }
+  textarea { resize: vertical; min-height: 80px; }
+  .btn { background: #1e3a5f; color: #ffffff; border: none; border-radius: 6px; padding: 11px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  .btn:hover { background: #16304f; }
+  .btn-secondary { background: #ffffff; color: #1e3a5f; border: 1.5px solid #1e3a5f; }
+  .btn-secondary:hover { background: #f0f4f9; }
+  .btn-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .tech-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+  .tech-item { display: flex; align-items: center; gap: 14px; background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 8px; padding: 12px 16px; }
+  .tech-item:hover { border-color: #1e3a5f; background: #f0f4f9; }
+  .tech-item input[type="checkbox"] { width: 17px; height: 17px; accent-color: #1e3a5f; cursor: pointer; }
+  .tech-info { flex: 1; }
+  .tech-name { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+  .tech-skills { font-size: 12px; color: #5a6a7e; margin-top: 2px; }
+  .tech-status { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+  .status-available { background: #e6f4ea; color: #2e7d32; }
+  .status-busy { background: #fdecea; color: #c62828; }
+  .preview-box { background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 8px; padding: 20px; font-size: 13px; font-family: 'Courier New', monospace; line-height: 1.8; white-space: pre-wrap; color: #1a1a2e; min-height: 200px; }
+  .confirmation-banner { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 14px 18px; display: none; align-items: center; gap: 10px; margin-top: 16px; }
+  .confirmation-banner.show { display: flex; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #2e7d32; flex-shrink: 0; }
+  .urgency-urgent { color: #c62828; font-weight: 700; }
+  .urgency-medium { color: #e65100; font-weight: 600; }
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } header { padding: 16px 20px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>FieldBase</h1>
+  <span>/ Job Brief Generator</span>
+</header>
+<nav style="background:#fff;border-bottom:1px solid #dde3ec;padding:0 40px;display:flex;gap:4px;">
+  <a href="/" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Dashboard</a>
+  <a href="/calendar" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Calendar</a>
+  <a href="/job-brief" style="padding:14px 16px;font-size:14px;font-weight:600;color:#1e3a5f;text-decoration:none;border-bottom:2px solid #1e3a5f;">Job Brief</a>
+  <a href="/invoice" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Invoices</a>
+</nav>
+<div class="container">
+
+  <div class="card">
+    <h2>Job Details</h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Job Title</label>
+        <input type="text" id="jobTitle" placeholder="e.g. Network Equipment Install">
+      </div>
+      <div class="form-group">
+        <label>Platform / Source</label>
+        <select id="platform">
+          <option value="">Select platform</option>
+          <option>WorkMarket</option>
+          <option>Field Nation</option>
+          <option>Direct Client</option>
+          <option>Email Ticket</option>
+          <option>Phone Call</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Job Date</label>
+        <input type="date" id="jobDate">
+      </div>
+      <div class="form-group">
+        <label>Job Time</label>
+        <input type="time" id="jobTime">
+      </div>
+      <div class="form-group">
+        <label>Estimated Duration</label>
+        <input type="text" id="duration" placeholder="e.g. 3 hours">
+      </div>
+      <div class="form-group">
+        <label>Urgency</label>
+        <select id="urgency">
+          <option value="standard">Standard</option>
+          <option value="medium">Medium Priority</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Location / Address</label>
+        <input type="text" id="location" placeholder="Full address of job site">
+      </div>
+      <div class="form-group full">
+        <label>Scope of Work</label>
+        <textarea id="scope" placeholder="Describe exactly what needs to be done..."></textarea>
+      </div>
+      <div class="form-group full">
+        <label>Tools / Equipment Required</label>
+        <input type="text" id="tools" placeholder="e.g. Ladder, cable tester, drill">
+      </div>
+      <div class="form-group full">
+        <label>Skills / Qualifications Required</label>
+        <input type="text" id="skills" placeholder="e.g. Network+, OSHA10, forklift certified">
+      </div>
+      <div class="form-group full">
+        <label>Special Instructions</label>
+        <textarea id="special" placeholder="Client preferences, access codes, parking notes..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Assign Tech</h2>
+    <p style="font-size:13px;color:#5a6a7e;margin-bottom:16px;">Select the tech for this job. Only assign if they have the required skills and availability.</p>
+    <div class="tech-list">
+      <div class="tech-item">
+        <input type="checkbox" name="tech" value="Glenn (You)">
+        <div class="tech-info">
+          <div class="tech-name">Glenn (You)</div>
+          <div class="tech-skills">All skills — primary tech</div>
+        </div>
+        <span class="tech-status status-available">Available</span>
+      </div>
+      <div class="tech-item">
+        <input type="checkbox" name="tech" value="Contractor 1">
+        <div class="tech-info">
+          <div class="tech-name">Contractor 1</div>
+          <div class="tech-skills">Network install, cable runs, rack work</div>
+        </div>
+        <span class="tech-status status-available">Available</span>
+      </div>
+      <div class="tech-item">
+        <input type="checkbox" name="tech" value="Contractor 2">
+        <div class="tech-info">
+          <div class="tech-name">Contractor 2</div>
+          <div class="tech-skills">AV install, low voltage, client-facing</div>
+        </div>
+        <span class="tech-status status-busy">Busy</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Tech Standards (Auto-Injected)</h2>
+    <p style="font-size:13px;color:#5a6a7e;margin-bottom:16px;">These standards are appended to every brief automatically.</p>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Dress Code</label>
+        <input type="text" id="dresscode" value="Company shirt, clean pants, closed-toe shoes. No ripped clothing.">
+      </div>
+      <div class="form-group full">
+        <label>ETA Rules</label>
+        <input type="text" id="eta" value="Arrive 10 minutes early. Text client 30 minutes before arrival.">
+      </div>
+      <div class="form-group full">
+        <label>Deliverables</label>
+        <input type="text" id="deliverables" value="Photo documentation of completed work. Client signature on completion form.">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Generated Brief</h2>
+    <div class="btn-row">
+      <button class="btn" onclick="generateBrief()">Generate Brief</button>
+      <button class="btn btn-secondary" onclick="copyBrief()">Copy to Clipboard</button>
+      <button class="btn btn-secondary" onclick="printBrief()">Print / Save PDF</button>
+    </div>
+    <div style="margin-top:20px;">
+      <div class="preview-box" id="previewBox">Brief will appear here after you click Generate.</div>
+    </div>
+    <div class="confirmation-banner" id="confirmBanner">
+      <div class="dot"></div>
+      <span style="font-size:13px;color:#2e7d32;font-weight:500;">Brief generated and ready to dispatch. Copy and send to assigned tech for confirmation before job is accepted.</span>
+    </div>
+  </div>
+
+</div>
+<script>
+function generateBrief() {
+  const title = document.getElementById('jobTitle').value || 'Untitled Job';
+  const platform = document.getElementById('platform').value || 'N/A';
+  const date = document.getElementById('jobDate').value || 'TBD';
+  const timeval = document.getElementById('jobTime').value || 'TBD';
+  const duration = document.getElementById('duration').value || 'TBD';
+  const urgency = document.getElementById('urgency').value;
+  const location = document.getElementById('location').value || 'TBD';
+  const scope = document.getElementById('scope').value || 'No scope provided.';
+  const tools = document.getElementById('tools').value || 'None specified';
+  const skills = document.getElementById('skills').value || 'None specified';
+  const special = document.getElementById('special').value || 'None';
+  const dresscode = document.getElementById('dresscode').value;
+  const eta = document.getElementById('eta').value;
+  const deliverables = document.getElementById('deliverables').value;
+  const techs = [...document.querySelectorAll('input[name="tech"]:checked')].map(t => t.value);
+  const assignedTech = techs.length > 0 ? techs.join(', ') : 'UNASSIGNED';
+  const now = new Date();
+  const generated = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) + ' at ' + now.toLocaleTimeString();
+  const urgencyLabel = urgency === 'urgent' ? '*** URGENT ***' : urgency === 'medium' ? '** MEDIUM PRIORITY **' : 'Standard';
+  const brief = `════════════════════════════════════════
+FIELDBASE — JOB BRIEF
+Generated: ${generated}
+════════════════════════════════════════
+
+JOB TITLE:     ${title}
+PLATFORM:      ${platform}
+PRIORITY:      ${urgencyLabel}
+DATE:          ${date}
+TIME:          ${timeval}
+DURATION:      ${duration}
+LOCATION:      ${location}
+ASSIGNED TO:   ${assignedTech}
+
+────────────────────────────────────────
+SCOPE OF WORK
+────────────────────────────────────────
+${scope}
+
+────────────────────────────────────────
+REQUIREMENTS
+────────────────────────────────────────
+Tools / Equipment:   ${tools}
+Skills / Certs:      ${skills}
+
+────────────────────────────────────────
+SPECIAL INSTRUCTIONS
+────────────────────────────────────────
+${special}
+
+────────────────────────────────────────
+TECH STANDARDS (MANDATORY)
+────────────────────────────────────────
+Dress Code:     ${dresscode}
+ETA Rules:      ${eta}
+Deliverables:   ${deliverables}
+
+────────────────────────────────────────
+CONFIRMATION REQUIRED
+────────────────────────────────────────
+Tech must confirm acceptance of this job
+before it is considered dispatched.
+Reply CONFIRM to accept or DECLINE to reject.
+
+════════════════════════════════════════
+FIELDBASE — END OF BRIEF
+════════════════════════════════════════`;
+  document.getElementById('previewBox').textContent = brief;
+  document.getElementById('confirmBanner').classList.add('show');
+}
+function copyBrief() {
+  const text = document.getElementById('previewBox').textContent;
+  navigator.clipboard.writeText(text).then(() => alert('Brief copied to clipboard.'));
+}
+function printBrief() {
+  const content = document.getElementById('previewBox').textContent;
+  const w = window.open('', '_blank');
+  w.document.write('<pre style="font-family:monospace;font-size:13px;padding:40px;color:#000;">' + content + '</pre>');
+  w.document.close();
+  w.print();
+}
+</script>
+</body>
+</html>

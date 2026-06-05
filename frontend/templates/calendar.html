@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FieldBase — Calendar</title>
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+
+        header { background: #1e3a5f; padding: 18px 40px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+        header h1 { font-size: 22px; color: #fff; font-weight: 700; letter-spacing: 1px; }
+        header p { color: #a8c4e0; font-size: 12px; margin-top: 2px; }
+        .add-btn { background: #fff; color: #1e3a5f; border: none; border-radius: 6px; padding: 9px 18px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .add-btn:hover { background: #e8edf4; }
+
+        nav { background: #fff; border-bottom: 1px solid #dde3ec; padding: 0 40px; display: flex; gap: 4px; }
+        nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #5a6a7e; text-decoration: none; border-bottom: 2px solid transparent; }
+        nav a:hover { color: #1e3a5f; }
+        nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
+
+        .conflict-banner { display: none; background: #fdecea; border-bottom: 1px solid #ffcdd2; padding: 10px 40px; font-size: 13px; color: #c62828; }
+        .conflict-banner.show { display: block; }
+        .conflict-banner strong { font-weight: 700; }
+
+        .legend { padding: 16px 40px 0; display: flex; gap: 20px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #5a6a7e; }
+        .legend-dot { width: 11px; height: 11px; border-radius: 50%; }
+
+        .calendar-wrap { padding: 20px 40px 40px; }
+        #calendar { background: #fff; border: 1px solid #dde3ec; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+
+        /* FullCalendar overrides */
+        .fc { color: #1a1a2e; font-family: 'Segoe UI', sans-serif; }
+        .fc-toolbar-title { color: #1e3a5f !important; font-size: 16px !important; font-weight: 700 !important; }
+        .fc-button { background: #fff !important; border: 1.5px solid #d0d7e3 !important; color: #1e3a5f !important; font-weight: 600 !important; font-size: 13px !important; border-radius: 6px !important; }
+        .fc-button:hover { background: #f0f4f9 !important; }
+        .fc-button-active, .fc-button-primary:not(:disabled).fc-button-active { background: #1e3a5f !important; border-color: #1e3a5f !important; color: #fff !important; }
+        .fc-col-header-cell { background: #f4f6f9; color: #5a6a7e; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .fc-col-header-cell-cushion { color: #5a6a7e !important; text-decoration: none !important; }
+        .fc-timegrid-slot { border-color: #f0f4f9 !important; }
+        .fc-daygrid-day { background: #fff; }
+        .fc-daygrid-day:hover { background: #f9fafc; }
+        .fc-scrollgrid { border-color: #dde3ec !important; }
+        .fc td, .fc th { border-color: #e8edf4 !important; }
+        .fc-day-today { background: #f0f4f9 !important; }
+        .fc-daygrid-day-number, .fc-timegrid-slot-label { color: #5a6a7e !important; font-size: 12px !important; }
+        .fc-event { border-radius: 5px !important; font-size: 12px !important; font-weight: 600 !important; border: none !important; padding: 2px 6px !important; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 12px; padding: 28px; width: 100%; max-width: 460px; margin: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
+        .modal h2 { font-size: 18px; font-weight: 700; color: #1e3a5f; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+        .form-group label { font-size: 11px; font-weight: 700; color: #5a6a7e; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group input, .form-group select, .form-group textarea { background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 6px; padding: 9px 13px; color: #1a1a2e; font-size: 14px; font-family: inherit; outline: none; transition: border 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-primary { flex: 1; background: #1e3a5f; color: #fff; border: none; border-radius: 6px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .btn-primary:hover { background: #16304f; }
+        .btn-cancel { flex: 1; background: #fff; color: #5a6a7e; border: 1.5px solid #d0d7e3; border-radius: 6px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .btn-cancel:hover { background: #f4f6f9; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h1>FieldBase</h1>
+        <p>Unified Calendar</p>
+    </div>
+    <button class="add-btn" onclick="document.getElementById('add-modal').classList.add('show')">+ Add Job</button>
+</header>
+
+<nav>
+    <a href="/">Dashboard</a>
+    <a href="/calendar" class="active">Calendar</a>
+    <a href="/job-brief">Job Brief</a>
+    <a href="/invoice">Invoices</a>
+</nav>
+
+<div id="conflict-banner" class="conflict-banner">
+    <strong>Conflict detected —</strong> <span id="conflict-detail"></span>
+</div>
+
+<div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#2563eb"></div> WorkMarket</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div> Field Nation</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div> Manual</div>
+</div>
+
+<div class="calendar-wrap">
+    <div id="calendar"></div>
+</div>
+
+<!-- Add Job Modal -->
+<div id="add-modal" class="modal-overlay">
+    <div class="modal">
+        <h2>Add Job</h2>
+        <div class="form-group">
+            <label>Job Title</label>
+            <input id="job-title" type="text" placeholder="e.g. Network Equipment Install">
+        </div>
+        <div class="form-group">
+            <label>Platform</label>
+            <select id="job-platform">
+                <option value="workmarket">WorkMarket</option>
+                <option value="fieldnation">Field Nation</option>
+                <option value="manual">Manual</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Location</label>
+            <input id="job-location" type="text" placeholder="Job site address">
+        </div>
+        <div class="form-group">
+            <label>Assigned Tech</label>
+            <input id="job-tech" type="text" placeholder="Tech name">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Start</label>
+                <input id="job-start" type="datetime-local">
+            </div>
+            <div class="form-group">
+                <label>End</label>
+                <input id="job-end" type="datetime-local">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea id="job-notes" rows="2" placeholder="Optional notes"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-primary" onclick="addJob()">Save Job</button>
+            <button class="btn-cancel" onclick="document.getElementById('add-modal').classList.remove('show')">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let calendar;
+
+    document.addEventListener('DOMContentLoaded', async function() {
+        const calEl = document.getElementById('calendar');
+        calendar = new FullCalendar.Calendar(calEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            events: '/api/jobs',
+            height: 'auto',
+            eventClick: function(info) {
+                alert(`${info.event.title}\nPlatform: ${info.event.extendedProps.platform || 'N/A'}\nLocation: ${info.event.extendedProps.location || 'N/A'}\nTech: ${info.event.extendedProps.tech || 'Unassigned'}`);
+            }
+        });
+        calendar.render();
+        await loadConflicts();
+    });
+
+    async function loadConflicts() {
+        const conflicts = await fetch('/api/conflicts').then(r => r.json());
+        if (conflicts.length > 0) {
+            document.getElementById('conflict-banner').classList.add('show');
+            document.getElementById('conflict-detail').textContent = `${conflicts[0].job_a} overlaps with ${conflicts[0].job_b}`;
+        }
+    }
+
+    async function addJob() {
+        const data = {
+            title:    document.getElementById('job-title').value,
+            platform: document.getElementById('job-platform').value,
+            location: document.getElementById('job-location').value,
+            tech:     document.getElementById('job-tech').value,
+            start:    document.getElementById('job-start').value,
+            end:      document.getElementById('job-end').value,
+            notes:    document.getElementById('job-notes').value
+        };
+        if (!data.title || !data.start || !data.end) { alert('Title, start, and end are required.'); return; }
+        await fetch('/api/jobs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+        document.getElementById('add-modal').classList.remove('show');
+        calendar.refetchEvents();
+        await loadConflicts();
+    }
+</script>
+</body>
+</html>
