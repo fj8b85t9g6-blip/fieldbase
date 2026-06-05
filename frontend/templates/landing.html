@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FieldBase — Field Service Management</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1f2937; background: #fff; }
+
+    /* NAV */
+    .nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 48px; background: #fff; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 100; }
+    .nav-brand { font-size: 22px; font-weight: 800; color: #1e3a5f; letter-spacing: -0.5px; }
+    .nav-links { display: flex; align-items: center; gap: 16px; }
+    .btn-signin { padding: 9px 20px; border: 1.5px solid #1e3a5f; color: #1e3a5f; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.15s; }
+    .btn-signin:hover { background: #f0f4f8; }
+    .btn-signup { padding: 9px 20px; background: #1e3a5f; color: #fff; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none; transition: background 0.15s; }
+    .btn-signup:hover { background: #163055; }
+
+    /* HERO */
+    .hero { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); padding: 96px 48px 80px; text-align: center; }
+    .hero-tag { display: inline-block; background: rgba(255,255,255,0.15); color: #e0f0ff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 6px 16px; border-radius: 20px; margin-bottom: 24px; }
+    .hero h1 { font-size: 52px; font-weight: 800; color: #fff; line-height: 1.1; letter-spacing: -1px; max-width: 720px; margin: 0 auto 20px; }
+    .hero p { font-size: 20px; color: #a8c8e8; max-width: 580px; margin: 0 auto 40px; line-height: 1.6; }
+    .hero-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .hero-btn-primary { padding: 16px 36px; background: #fff; color: #1e3a5f; border-radius: 8px; font-size: 16px; font-weight: 700; text-decoration: none; transition: all 0.15s; }
+    .hero-btn-primary:hover { background: #f0f4f8; transform: translateY(-1px); }
+    .hero-btn-secondary { padding: 16px 36px; border: 2px solid rgba(255,255,255,0.4); color: #fff; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none; transition: all 0.15s; }
+    .hero-btn-secondary:hover { border-color: #fff; background: rgba(255,255,255,0.1); }
+
+    /* STATS BAR */
+    .stats-bar { background: #f8fafc; border-bottom: 1px solid #e5e7eb; padding: 28px 48px; display: flex; justify-content: center; gap: 64px; flex-wrap: wrap; }
+    .stat { text-align: center; }
+    .stat .num { font-size: 32px; font-weight: 800; color: #1e3a5f; }
+    .stat .label { font-size: 13px; color: #6b7280; margin-top: 4px; }
+
+    /* FEATURES */
+    .section { padding: 80px 48px; max-width: 1100px; margin: 0 auto; }
+    .section-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #2d5a8e; margin-bottom: 12px; }
+    .section h2 { font-size: 36px; font-weight: 800; color: #1e3a5f; letter-spacing: -0.5px; margin-bottom: 16px; }
+    .section .lead { font-size: 18px; color: #6b7280; max-width: 560px; line-height: 1.6; margin-bottom: 56px; }
+
+    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+    .feature-card { padding: 28px; background: #f8fafc; border-radius: 12px; border: 1px solid #e5e7eb; }
+    .feature-icon { font-size: 28px; margin-bottom: 16px; }
+    .feature-card h3 { font-size: 16px; font-weight: 700; color: #1e3a5f; margin-bottom: 10px; }
+    .feature-card p { font-size: 14px; color: #6b7280; line-height: 1.6; }
+
+    /* HOW IT WORKS */
+    .how-section { background: #f8fafc; padding: 80px 48px; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; }
+    .how-inner { max-width: 900px; margin: 0 auto; }
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 48px; }
+    .step { text-align: center; }
+    .step-num { width: 44px; height: 44px; background: #1e3a5f; color: #fff; border-radius: 50%; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .step h4 { font-size: 15px; font-weight: 700; color: #1e3a5f; margin-bottom: 8px; }
+    .step p { font-size: 13px; color: #6b7280; line-height: 1.5; }
+
+    /* ROLES */
+    .roles { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 48px; }
+    .role-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .role-card h3 { font-size: 18px; font-weight: 700; color: #1e3a5f; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 2px solid #1e3a5f; }
+    .role-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .role-list li { font-size: 14px; color: #374151; display: flex; align-items: flex-start; gap: 10px; }
+    .role-list li::before { content: '✓'; color: #22c55e; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+    /* CTA */
+    .cta { background: #1e3a5f; padding: 80px 48px; text-align: center; }
+    .cta h2 { font-size: 36px; font-weight: 800; color: #fff; margin-bottom: 16px; }
+    .cta p { font-size: 18px; color: #a8c8e8; margin-bottom: 36px; }
+    .cta-btn { display: inline-block; padding: 16px 48px; background: #fff; color: #1e3a5f; border-radius: 8px; font-size: 16px; font-weight: 700; text-decoration: none; transition: all 0.15s; }
+    .cta-btn:hover { background: #f0f4f8; transform: translateY(-1px); }
+
+    /* FOOTER */
+    footer { background: #0f2340; padding: 28px 48px; text-align: center; }
+    footer p { color: #4b6b8a; font-size: 13px; }
+
+    @media (max-width: 768px) {
+      .nav { padding: 16px 20px; }
+      .hero { padding: 64px 24px 56px; }
+      .hero h1 { font-size: 34px; }
+      .hero p { font-size: 16px; }
+      .section { padding: 56px 24px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr 1fr; }
+      .roles { grid-template-columns: 1fr; }
+      .stats-bar { gap: 32px; padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<div class="nav">
+  <div class="nav-brand">FieldBase</div>
+  <div class="nav-links">
+    <a href="/login" class="btn-signin">Sign In</a>
+    <a href="/register" class="btn-signup">Get Started Free</a>
+  </div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag">Field Service Management</div>
+  <h1>Run Your Field Business Without the Chaos</h1>
+  <p>FieldBase keeps your jobs, techs, and invoices in one place — so you spend less time coordinating and more time getting paid.</p>
+  <div class="hero-btns">
+    <a href="/register" class="hero-btn-primary">Create Free Account</a>
+    <a href="/login" class="hero-btn-secondary">Sign In</a>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat">
+    <div class="num">100%</div>
+    <div class="label">Web-based — no app download</div>
+  </div>
+  <div class="stat">
+    <div class="num">Real-Time</div>
+    <div class="label">Field activity tracking</div>
+  </div>
+  <div class="stat">
+    <div class="num">$0</div>
+    <div class="label">Setup cost</div>
+  </div>
+  <div class="stat">
+    <div class="num">2 min</div>
+    <div class="label">To get your team set up</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<div class="section">
+  <div class="section-label">Features</div>
+  <h2>Everything you need to run your crew</h2>
+  <p class="lead">Built specifically for field service contractors — not bloated enterprise software.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">📅</div>
+      <h3>Job Scheduling</h3>
+      <p>Schedule jobs from WorkMarket, Field Nation, or manually. See everything on one calendar with automatic conflict detection.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">👥</div>
+      <h3>Team Management</h3>
+      <p>Add your techs, assign jobs, and set individual pay rates. Techs only see their cut — never the full job value.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📍</div>
+      <h3>Real-Time Field Tracking</h3>
+      <p>Know the moment a tech confirms, clocks in, clocks out, or marks a job complete. No more "where are you?" calls.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📱</div>
+      <h3>Tech Mobile View</h3>
+      <p>Techs log in on their phone — no app download. One tap for directions, simple confirm → clock in → complete workflow.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🧾</div>
+      <h3>Invoicing & Job Briefs</h3>
+      <p>Generate professional job briefs for every dispatch. Create and print invoices directly from the app.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔗</div>
+      <h3>Platform Integrations</h3>
+      <p>Connect WorkMarket and Field Nation directly. Jobs sync automatically — no manual entry required.</p>
+    </div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="how-section">
+  <div class="how-inner">
+    <div class="section-label" style="text-align:center;">How It Works</div>
+    <h2 style="font-size:32px; font-weight:800; color:#1e3a5f; text-align:center;">Up and running in minutes</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>Create Your Account</h4>
+        <p>Register your business — takes under 2 minutes.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>Add Your Team</h4>
+        <p>Add your techs. They get their own login linked to your company.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>Schedule Jobs</h4>
+        <p>Add jobs to the calendar and assign them to your techs.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <h4>Track in Real Time</h4>
+        <p>Watch your techs confirm, clock in, and complete jobs live.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROLES -->
+<div class="section">
+  <div class="section-label">Built For Everyone</div>
+  <h2>Two views. One platform.</h2>
+  <p class="lead">Owners get full visibility. Techs get exactly what they need — nothing more.</p>
+  <div class="roles">
+    <div class="role-card">
+      <h3>For the Owner</h3>
+      <ul class="role-list">
+        <li>Full job calendar with conflict detection</li>
+        <li>Assign jobs with pay rates per tech</li>
+        <li>See live field status — confirmed, on site, complete</li>
+        <li>Get alerted when a tech hasn't confirmed</li>
+        <li>Read tech field notes as they're submitted</li>
+        <li>Generate job briefs and invoices</li>
+        <li>Connect WorkMarket & Field Nation</li>
+        <li>Manage your team — add, deactivate, reactivate</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <h3>For the Tech</h3>
+      <ul class="role-list">
+        <li>See only their assigned jobs</li>
+        <li>Their pay rate — not the full job value</li>
+        <li>One tap to open job location in Maps</li>
+        <li>Read owner instructions for each job</li>
+        <li>Confirm, clock in, clock out, mark complete</li>
+        <li>Add field notes from the job site</li>
+        <li>Works on any phone browser — no download</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- CTA -->
+<div class="cta">
+  <h2>Ready to get organized?</h2>
+  <p>Create your free account and have your team set up today.</p>
+  <a href="/register" class="cta-btn">Get Started Free</a>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2026 FieldBase. Field Service Management Software.</p>
+</footer>
+
+</body>
+</html>

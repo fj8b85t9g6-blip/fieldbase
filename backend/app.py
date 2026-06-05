@@ -24,7 +24,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
-login_manager.login_view = 'login'
+login_manager.login_view = 'index'
 login_manager.login_message = ''
 
 # ─────────────────────────────────────────
@@ -192,9 +192,11 @@ def logout():
 # ─────────────────────────────────────────
 
 @app.route('/')
-@login_required
-@owner_required
 def index():
+    if not current_user.is_authenticated:
+        return render_template('landing.html')
+    if current_user.role == 'employee':
+        return redirect(url_for('employee_dashboard'))
     from datetime import date
     jobs        = Job.query.filter_by(company_id=current_user.company_id).order_by(Job.start_time).all()
     conflicts   = detect_conflicts(current_user.company_id)
