@@ -84,6 +84,18 @@ class Conflict(db.Model):
     resolved    = db.Column(db.Boolean, default=False)
 
 
+class PlatformCredential(db.Model):
+    __tablename__ = 'platform_credentials'
+    id         = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    platform   = db.Column(db.String(50), nullable=False)   # workmarket, fieldnation
+    api_key    = db.Column(db.Text)
+    api_secret = db.Column(db.Text)
+    enabled    = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint('company_id', 'platform'),)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -283,6 +295,42 @@ def mark_invoice_sent(job_id):
     job.invoice_sent_at  = datetime.utcnow()
     db.session.commit()
     return jsonify({'success': True})
+
+# ─────────────────────────────────────────
+# SETTINGS ROUTES
+# ─────────────────────────────────────────
+
+@app.route('/settings', methods=['GET', 'POST'])
+@login_required
+@owner_required
+def settings():
+    creds = {
+        c.platform: c
+        for c in PlatformCredential.query.filter_by(company_id=current_user.company_id).all()
+    }
+    if request.method == 'POST':
+        for platform in ('workmarket', 'fieldnation'):
+            api_key    = request.form.get(f'{platform}_key', '').strip()
+            api_secret = request.form.get(f'{platform}_secret', '').strip()
+            enabled    = request.form.get(f'{platform}_enabled') == 'on'
+            if platform in creds:
+                creds[platform].api_key    = api_key
+                creds[platform].api_secret = api_secret
+                creds[platform].enabled    = enabled
+                creds[platform].updated_at = datetime.utcnow()
+            else:
+                db.session.add(PlatformCredential(
+                    company_id=current_user.company_id,
+                    platform=platform,
+                    api_key=api_key,
+                    api_secret=api_secret,
+                    enabled=enabled
+                ))
+        db.session.commit()
+        flash('Settings saved.')
+        return redirect(url_for('settings'))
+    return render_template('settings.html', creds=creds, company=current_user.company)
+
 
 # ─────────────────────────────────────────
 # HELPERS
