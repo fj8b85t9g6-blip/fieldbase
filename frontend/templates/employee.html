@@ -7,24 +7,79 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1f2937; }
-    nav { background: #1e3a5f; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
-    nav .brand { color: #fff; font-size: 20px; font-weight: 700; }
-    nav .user { color: #cbd5e1; font-size: 14px; display: flex; align-items: center; gap: 16px; }
+
+    nav { background: #1e3a5f; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
+    nav .brand { color: #fff; font-size: 18px; font-weight: 700; }
+    nav .user { display: flex; align-items: center; gap: 14px; }
+    nav .user span { color: #cbd5e1; font-size: 13px; }
     nav .user a { color: #94a3b8; text-decoration: none; font-size: 13px; }
-    nav .user a:hover { color: #fff; }
-    .container { max-width: 800px; margin: 32px auto; padding: 0 24px; }
-    h2 { font-size: 22px; font-weight: 700; color: #1e3a5f; margin-bottom: 20px; }
-    .job-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 20px 24px; margin-bottom: 16px; border-left: 4px solid #1e3a5f; }
-    .job-title { font-size: 16px; font-weight: 700; color: #1f2937; margin-bottom: 8px; }
-    .job-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px; color: #6b7280; }
-    .job-meta span strong { color: #374151; }
-    .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-top: 10px; }
-    .badge.scheduled { background: #dbeafe; color: #1d4ed8; }
-    .badge.in_progress { background: #fef9c3; color: #a16207; }
-    .badge.complete { background: #dcfce7; color: #166534; }
-    .pay { font-size: 18px; font-weight: 700; color: #1e3a5f; margin-top: 12px; }
-    .empty { text-align: center; padding: 60px 20px; color: #9ca3af; }
-    .empty p { font-size: 16px; }
+
+    .container { max-width: 680px; margin: 0 auto; padding: 24px 16px; }
+
+    h2 { font-size: 20px; font-weight: 700; color: #1e3a5f; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 20px; }
+
+    .job-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.09); margin-bottom: 20px; overflow: hidden; }
+    .job-card.unconfirmed { border-left: 4px solid #f59e0b; }
+    .job-card.confirmed   { border-left: 4px solid #3b82f6; }
+    .job-card.in_progress { border-left: 4px solid #8b5cf6; }
+    .job-card.complete    { border-left: 4px solid #22c55e; }
+
+    .card-header { padding: 18px 20px 12px; }
+    .job-title { font-size: 16px; font-weight: 700; color: #1f2937; margin-bottom: 10px; }
+
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .meta-item { font-size: 13px; color: #6b7280; }
+    .meta-item strong { display: block; color: #374151; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px; }
+
+    .maps-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #1e3a5f; text-decoration: none; background: #eff6ff; padding: 6px 12px; border-radius: 6px; margin-bottom: 12px; }
+    .maps-link:hover { background: #dbeafe; }
+
+    .pay-badge { display: inline-block; background: #f0fdf4; color: #166534; font-size: 18px; font-weight: 700; padding: 6px 14px; border-radius: 8px; margin-bottom: 14px; }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .badge.scheduled  { background: #fef3c7; color: #92400e; }
+    .badge.confirmed  { background: #dbeafe; color: #1d4ed8; }
+    .badge.in_progress{ background: #ede9fe; color: #6d28d9; }
+    .badge.complete   { background: #dcfce7; color: #166534; }
+
+    .divider { height: 1px; background: #f3f4f6; margin: 0 20px; }
+
+    .instructions { padding: 14px 20px; background: #fafafa; }
+    .instructions-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+    .instructions-text { font-size: 14px; color: #374151; line-height: 1.5; }
+
+    .actions { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .action-row { display: flex; gap: 10px; }
+
+    .btn { flex: 1; padding: 12px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; text-align: center; }
+    .btn-confirm  { background: #f59e0b; color: #fff; }
+    .btn-confirm:hover  { background: #d97706; }
+    .btn-clockin  { background: #8b5cf6; color: #fff; }
+    .btn-clockin:hover  { background: #7c3aed; }
+    .btn-clockout { background: #3b82f6; color: #fff; }
+    .btn-clockout:hover { background: #2563eb; }
+    .btn-complete { background: #22c55e; color: #fff; }
+    .btn-complete:hover { background: #16a34a; }
+    .btn-disabled { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
+
+    .time-track { font-size: 12px; color: #6b7280; padding: 0 20px 14px; }
+    .time-track span { display: inline-block; margin-right: 16px; }
+    .time-track .active { color: #7c3aed; font-weight: 600; }
+
+    .notes-section { padding: 14px 20px; border-top: 1px solid #f3f4f6; }
+    .notes-section label { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; display: block; margin-bottom: 6px; }
+    .notes-section textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px 12px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px; outline: none; }
+    .notes-section textarea:focus { border-color: #1e3a5f; }
+    .btn-save-notes { margin-top: 8px; background: #1e3a5f; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-save-notes:hover { background: #163055; }
+    .saved-note { font-size: 13px; color: #374151; line-height: 1.5; background: #f9fafb; padding: 10px 12px; border-radius: 6px; border: 1px solid #e5e7eb; }
+
+    .empty { text-align: center; padding: 60px 20px; }
+    .empty p { font-size: 16px; color: #9ca3af; }
+
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e3a5f; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.3s; z-index: 999; pointer-events: none; }
+    .toast.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -35,25 +90,94 @@
       <a href="/logout">Sign Out</a>
     </div>
   </nav>
+
   <div class="container">
-    <h2>My Assigned Jobs</h2>
+    <h2>My Jobs</h2>
+    <p class="subtitle">{{ jobs|length }} job{{ 's' if jobs|length != 1 else '' }} assigned to you</p>
+
     {% if jobs %}
       {% for job in jobs %}
-      <div class="job-card">
-        <div class="job-title">{{ job.title }}</div>
-        <div class="job-meta">
-          <span><strong>Location:</strong> {{ job.location or 'TBD' }}</span>
-          <span><strong>Platform:</strong> {{ job.platform | capitalize }}</span>
-          <span><strong>Start:</strong> {{ job.start_time.strftime('%b %d, %Y %I:%M %p') }}</span>
-          <span><strong>End:</strong> {{ job.end_time.strftime('%I:%M %p') }}</span>
+      <div class="job-card {{ 'in_progress' if job.status == 'in_progress' else ('complete' if job.status == 'complete' else ('confirmed' if job.tech_confirmed else 'unconfirmed')) }}" id="card-{{ job.id }}">
+
+        <div class="card-header">
+          <div class="job-title">{{ job.title }}</div>
+
+          <div class="meta-grid">
+            <div class="meta-item">
+              <strong>Date</strong>
+              {{ job.start_time.strftime('%a, %b %d') }}
+            </div>
+            <div class="meta-item">
+              <strong>Time</strong>
+              {{ job.start_time.strftime('%I:%M %p') }} – {{ job.end_time.strftime('%I:%M %p') }}
+            </div>
+            <div class="meta-item">
+              <strong>Platform</strong>
+              {{ job.platform | capitalize }}
+            </div>
+            <div class="meta-item">
+              <strong>Status</strong>
+              <span class="badge {{ job.status }}">{{ job.status | replace('_', ' ') | title }}</span>
+            </div>
+          </div>
+
+          {% if job.location %}
+          <a class="maps-link" href="https://maps.google.com/?q={{ job.location | urlencode }}" target="_blank" rel="noopener">
+            📍 {{ job.location }}
+          </a>
+          {% endif %}
+
+          {% if job.tech_pay %}
+          <div class="pay-badge">${{ '%.2f' | format(job.tech_pay) }}</div>
+          {% endif %}
         </div>
+
         {% if job.notes %}
-        <div style="margin-top:10px; font-size:14px; color:#6b7280;"><strong>Notes:</strong> {{ job.notes }}</div>
+        <div class="divider"></div>
+        <div class="instructions">
+          <div class="instructions-label">Instructions from Owner</div>
+          <div class="instructions-text">{{ job.notes }}</div>
+        </div>
         {% endif %}
-        <span class="badge {{ job.status }}">{{ job.status | replace('_', ' ') | title }}</span>
-        {% if job.tech_pay %}
-        <div class="pay">${{ '%.2f' | format(job.tech_pay) }}</div>
+
+        {% if job.clock_in_at or job.clock_out_at or job.confirmed_at %}
+        <div class="time-track">
+          {% if job.confirmed_at %}<span>✓ Confirmed {{ job.confirmed_at.strftime('%b %d %I:%M %p') }}</span>{% endif %}
+          {% if job.clock_in_at %}<span class="active">⏱ Clocked in {{ job.clock_in_at.strftime('%I:%M %p') }}</span>{% endif %}
+          {% if job.clock_out_at %}<span>⏹ Clocked out {{ job.clock_out_at.strftime('%I:%M %p') }}</span>{% endif %}
+        </div>
         {% endif %}
+
+        <div class="divider"></div>
+        <div class="actions" id="actions-{{ job.id }}">
+          {% if not job.tech_confirmed %}
+            <button class="btn btn-confirm" onclick="jobAction({{ job.id }}, 'confirm')">Confirm Job</button>
+          {% elif job.status == 'scheduled' %}
+            <button class="btn btn-clockin" onclick="jobAction({{ job.id }}, 'clock-in')">Clock In</button>
+          {% elif job.status == 'in_progress' and not job.clock_out_at %}
+            <div class="action-row">
+              <button class="btn btn-clockout" onclick="jobAction({{ job.id }}, 'clock-out')">Clock Out</button>
+              <button class="btn btn-complete" onclick="jobAction({{ job.id }}, 'complete')">Mark Complete</button>
+            </div>
+          {% elif job.clock_out_at and job.status != 'complete' %}
+            <button class="btn btn-complete" onclick="jobAction({{ job.id }}, 'complete')">Mark Complete</button>
+          {% elif job.status == 'complete' %}
+            <button class="btn btn-disabled" disabled>✓ Job Complete</button>
+          {% endif %}
+        </div>
+
+        <div class="notes-section">
+          <label>Your Notes</label>
+          {% if job.employee_notes %}
+            <div class="saved-note" id="note-display-{{ job.id }}">{{ job.employee_notes }}</div>
+            <textarea id="note-{{ job.id }}" style="display:none" placeholder="Update your notes...">{{ job.employee_notes }}</textarea>
+            <button class="btn-save-notes" onclick="toggleNotes({{ job.id }})">Edit Notes</button>
+          {% else %}
+            <textarea id="note-{{ job.id }}" placeholder="Add notes about this job — what was done, any issues, follow-ups needed..."></textarea>
+            <button class="btn-save-notes" onclick="saveNotes({{ job.id }})">Save Notes</button>
+          {% endif %}
+        </div>
+
       </div>
       {% endfor %}
     {% else %}
@@ -62,5 +186,60 @@
       </div>
     {% endif %}
   </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    function jobAction(jobId, action) {
+      fetch(`/api/jobs/${jobId}/${action}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showToast(actionLabel(action));
+            setTimeout(() => location.reload(), 800);
+          }
+        });
+    }
+
+    function actionLabel(action) {
+      return {
+        'confirm':   '✓ Job confirmed',
+        'clock-in':  '⏱ Clocked in',
+        'clock-out': '⏹ Clocked out',
+        'complete':  '✓ Job marked complete'
+      }[action] || 'Done';
+    }
+
+    function saveNotes(jobId) {
+      const text = document.getElementById(`note-${jobId}`).value.trim();
+      fetch(`/api/jobs/${jobId}/employee-notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: text })
+      }).then(() => {
+        showToast('Notes saved');
+        setTimeout(() => location.reload(), 800);
+      });
+    }
+
+    function toggleNotes(jobId) {
+      const display  = document.getElementById(`note-display-${jobId}`);
+      const textarea = document.getElementById(`note-${jobId}`);
+      const btn      = event.target;
+      if (textarea.style.display === 'none') {
+        display.style.display  = 'none';
+        textarea.style.display = 'block';
+        btn.textContent        = 'Save Notes';
+        btn.onclick            = () => saveNotes(jobId);
+      }
+    }
+  </script>
 </body>
 </html>

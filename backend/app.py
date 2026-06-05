@@ -67,11 +67,16 @@ class Job(db.Model):
     tech_assigned  = db.Column(db.String(100))
     tech_pay       = db.Column(db.Float)
     job_pay        = db.Column(db.Float)
-    tech_confirmed = db.Column(db.Boolean, default=False)
-    invoice_sent   = db.Column(db.Boolean, default=False)
-    invoice_sent_at= db.Column(db.DateTime)
-    notes          = db.Column(db.Text)
-    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    tech_confirmed  = db.Column(db.Boolean, default=False)
+    confirmed_at    = db.Column(db.DateTime)
+    clock_in_at     = db.Column(db.DateTime)
+    clock_out_at    = db.Column(db.DateTime)
+    completed_at    = db.Column(db.DateTime)
+    employee_notes  = db.Column(db.Text)
+    invoice_sent    = db.Column(db.Boolean, default=False)
+    invoice_sent_at = db.Column(db.DateTime)
+    notes           = db.Column(db.Text)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class Conflict(db.Model):
@@ -293,6 +298,59 @@ def mark_invoice_sent(job_id):
     job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
     job.invoice_sent     = True
     job.invoice_sent_at  = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'success': True})
+
+# ─────────────────────────────────────────
+# EMPLOYEE API ROUTES
+# ─────────────────────────────────────────
+
+def _employee_job(job_id):
+    """Get a job that belongs to the current employee's company."""
+    return Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+
+@app.route('/api/jobs/<int:job_id>/confirm', methods=['POST'])
+@login_required
+def confirm_job(job_id):
+    job = _employee_job(job_id)
+    job.tech_confirmed = True
+    job.confirmed_at   = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/jobs/<int:job_id>/clock-in', methods=['POST'])
+@login_required
+def clock_in(job_id):
+    job = _employee_job(job_id)
+    job.clock_in_at = datetime.utcnow()
+    job.status      = 'in_progress'
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/jobs/<int:job_id>/clock-out', methods=['POST'])
+@login_required
+def clock_out(job_id):
+    job = _employee_job(job_id)
+    job.clock_out_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/jobs/<int:job_id>/complete', methods=['POST'])
+@login_required
+def complete_job(job_id):
+    job = _employee_job(job_id)
+    job.status       = 'complete'
+    job.completed_at = datetime.utcnow()
+    if not job.clock_out_at:
+        job.clock_out_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/jobs/<int:job_id>/employee-notes', methods=['POST'])
+@login_required
+def save_employee_notes(job_id):
+    job = _employee_job(job_id)
+    job.employee_notes = request.json.get('notes', '').strip()
     db.session.commit()
     return jsonify({'success': True})
 
