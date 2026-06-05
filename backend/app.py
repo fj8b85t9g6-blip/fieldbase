@@ -195,10 +195,17 @@ def logout():
 @login_required
 @owner_required
 def index():
-    jobs      = Job.query.filter_by(company_id=current_user.company_id).all()
-    conflicts = detect_conflicts(current_user.company_id)
-    overdue   = [j for j in jobs if not j.invoice_sent and j.status == 'complete']
-    return render_template('index.html', jobs=jobs, conflicts=conflicts, overdue=overdue)
+    from datetime import date
+    jobs        = Job.query.filter_by(company_id=current_user.company_id).order_by(Job.start_time).all()
+    conflicts   = detect_conflicts(current_user.company_id)
+    today       = [j for j in jobs if j.start_time.date() == date.today()]
+    overdue     = [j for j in jobs if not j.invoice_sent and j.status == 'complete']
+    unconfirmed = [j for j in jobs if j.tech_assigned and not j.tech_confirmed and j.status == 'scheduled']
+    active      = [j for j in jobs if j.status == 'in_progress']
+    return render_template('index.html',
+        jobs=jobs, conflicts=conflicts, overdue=overdue,
+        today=today, unconfirmed=unconfirmed, active=active,
+        company=current_user.company)
 
 
 @app.route('/calendar')

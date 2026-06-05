@@ -3,43 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FieldBase</title>
+    <title>FieldBase — Dashboard</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
-        header { background: #1e3a5f; padding: 18px 40px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
-        header h1 { font-size: 22px; color: #ffffff; font-weight: 700; letter-spacing: 1px; }
-        header p { color: #a8c4e0; font-size: 12px; margin-top: 2px; }
-        #clock { color: #a8c4e0; font-size: 14px; }
-        nav { background: #ffffff; border-bottom: 1px solid #dde3ec; padding: 0 40px; display: flex; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #5a6a7e; text-decoration: none; border-bottom: 2px solid transparent; transition: color 0.2s, border-color 0.2s; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+
+        header { background: #1e3a5f; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+        header h1 { font-size: 20px; color: #fff; font-weight: 700; }
+        header .meta { display: flex; align-items: center; gap: 20px; }
+        header .company { color: #94a3b8; font-size: 13px; }
+        header #clock { color: #cbd5e1; font-size: 14px; }
+        header a.signout { color: #94a3b8; font-size: 13px; text-decoration: none; }
+        header a.signout:hover { color: #fff; }
+
+        nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 32px; display: flex; gap: 4px; }
+        nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; transition: all 0.15s; }
         nav a:hover { color: #1e3a5f; }
         nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
-        .container { max-width: 960px; margin: 32px auto; padding: 0 24px; }
-        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 28px; }
-        .stat-card { background: #ffffff; border: 1px solid #dde3ec; border-radius: 10px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-        .stat-card .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #5a6a7e; margin-bottom: 8px; }
-        .stat-card .value { font-size: 36px; font-weight: 700; color: #1e3a5f; line-height: 1; }
-        .stat-card .sub { font-size: 12px; color: #8a99aa; margin-top: 6px; }
-        .stat-card.warning .value { color: #e65100; }
-        .stat-card.danger .value { color: #c62828; }
-        .actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-        .action-btn { background: #ffffff; border: 1.5px solid #dde3ec; border-radius: 10px; padding: 22px 24px; text-decoration: none; color: #1a1a2e; display: flex; align-items: center; gap: 16px; transition: border-color 0.2s, box-shadow 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-        .action-btn:hover { border-color: #1e3a5f; box-shadow: 0 4px 12px rgba(30,58,95,0.12); }
-        .action-icon { width: 44px; height: 44px; background: #eef2f8; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
-        .action-title { font-size: 15px; font-weight: 600; color: #1a1a2e; }
-        .action-sub { font-size: 12px; color: #8a99aa; margin-top: 3px; }
-        @media (max-width: 640px) { .stats { grid-template-columns: 1fr; } .actions { grid-template-columns: 1fr; } nav { padding: 0 16px; } header { padding: 16px 20px; } }
+
+        .container { max-width: 1000px; margin: 28px auto; padding: 0 24px; }
+
+        /* Stats */
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); border-top: 3px solid transparent; }
+        .stat-card .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6b7280; margin-bottom: 8px; }
+        .stat-card .value { font-size: 34px; font-weight: 700; color: #1e3a5f; line-height: 1; }
+        .stat-card .sub { font-size: 12px; color: #9ca3af; margin-top: 5px; }
+        .stat-card.alert  { border-top-color: #ef4444; } .stat-card.alert .value  { color: #ef4444; }
+        .stat-card.warn   { border-top-color: #f59e0b; } .stat-card.warn .value   { color: #f59e0b; }
+        .stat-card.active { border-top-color: #8b5cf6; } .stat-card.active .value { color: #8b5cf6; }
+
+        /* Quick actions */
+        .section-title { font-size: 14px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+        .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+        .action-btn { background: #fff; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 18px; text-decoration: none; color: #1a1a2e; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; transition: all 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+        .action-btn:hover { border-color: #1e3a5f; box-shadow: 0 4px 12px rgba(30,58,95,0.1); }
+        .action-icon { font-size: 24px; }
+        .action-title { font-size: 13px; font-weight: 600; }
+        .action-sub { font-size: 11px; color: #9ca3af; }
+
+        /* Field Activity */
+        .activity-grid { display: flex; flex-direction: column; gap: 12px; }
+        .job-row { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); overflow: hidden; }
+        .job-row-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; cursor: pointer; }
+        .job-row-header:hover { background: #fafafa; }
+        .job-left { display: flex; align-items: center; gap: 14px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .dot-scheduled  { background: #d1d5db; }
+        .dot-confirmed  { background: #3b82f6; }
+        .dot-in_progress{ background: #8b5cf6; }
+        .dot-complete   { background: #22c55e; }
+        .dot-unconfirmed{ background: #f59e0b; }
+        .job-name { font-size: 14px; font-weight: 600; color: #1f2937; }
+        .job-time { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+        .job-right { display: flex; align-items: center; gap: 12px; text-align: right; }
+        .tech-name { font-size: 13px; color: #374151; font-weight: 500; }
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .badge-warn   { background: #fef3c7; color: #92400e; }
+        .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+        .badge-purple { background: #ede9fe; color: #6d28d9; }
+        .badge-green  { background: #dcfce7; color: #166534; }
+        .badge-gray   { background: #f3f4f6; color: #6b7280; }
+        .chevron { color: #9ca3af; font-size: 12px; transition: transform 0.2s; }
+        .chevron.open { transform: rotate(90deg); }
+
+        .job-detail { display: none; padding: 0 18px 16px; border-top: 1px solid #f3f4f6; }
+        .job-detail.open { display: block; }
+        .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+        .detail-item { font-size: 13px; color: #6b7280; }
+        .detail-item strong { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #9ca3af; margin-bottom: 3px; }
+        .detail-item .val { color: #374151; font-weight: 500; }
+        .employee-notes { margin-top: 12px; padding: 10px 14px; background: #f9fafb; border-radius: 6px; border-left: 3px solid #8b5cf6; font-size: 13px; color: #374151; }
+        .employee-notes strong { display: block; font-size: 11px; color: #8b5cf6; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+        .alert-banner { background: #fef9c3; border: 1px solid #fde047; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #713f12; margin-top: 14px; display: flex; align-items: center; gap: 8px; }
+
+        .empty-activity { text-align: center; padding: 40px; color: #9ca3af; font-size: 14px; background: #fff; border-radius: 8px; }
+
+        @media (max-width: 720px) {
+            .stats { grid-template-columns: 1fr 1fr; }
+            .actions { grid-template-columns: 1fr 1fr; }
+            header { padding: 14px 16px; }
+            nav { padding: 0 16px; }
+        }
     </style>
 </head>
 <body>
 
 <header>
-    <div>
-        <h1>FieldBase</h1>
-        <p>Field Service Command Center</p>
+    <h1>FieldBase</h1>
+    <div class="meta">
+        <span class="company">{{ company.name }}</span>
+        <span id="clock"></span>
+        <a href="/logout" class="signout">Sign Out</a>
     </div>
-    <div id="clock"></div>
 </header>
 
 <nav>
@@ -47,6 +103,7 @@
     <a href="/calendar">Calendar</a>
     <a href="/job-brief">Job Brief</a>
     <a href="/invoice">Invoices</a>
+    <a href="/settings">Settings</a>
 </nav>
 
 <div class="container">
@@ -54,73 +111,145 @@
     <div class="stats">
         <div class="stat-card">
             <div class="label">Today's Jobs</div>
-            <div class="value" id="today-count">—</div>
-            <div class="sub">Across all platforms</div>
+            <div class="value">{{ today|length }}</div>
+            <div class="sub">Scheduled today</div>
         </div>
-        <div class="stat-card danger">
+        <div class="stat-card {% if active %}active{% endif %}">
+            <div class="label">In Progress</div>
+            <div class="value">{{ active|length }}</div>
+            <div class="sub">Currently on site</div>
+        </div>
+        <div class="stat-card {% if unconfirmed %}warn{% endif %}">
+            <div class="label">Unconfirmed</div>
+            <div class="value">{{ unconfirmed|length }}</div>
+            <div class="sub">Awaiting tech response</div>
+        </div>
+        <div class="stat-card {% if conflicts %}alert{% endif %}">
             <div class="label">Conflicts</div>
-            <div class="value" id="conflict-count">—</div>
+            <div class="value">{{ conflicts|length }}</div>
             <div class="sub">Scheduling overlaps</div>
-        </div>
-        <div class="stat-card warning">
-            <div class="label">Invoices Overdue</div>
-            <div class="value" id="invoice-count">—</div>
-            <div class="sub">Not sent within 24 hours</div>
         </div>
     </div>
 
+    <div class="section-title" style="margin-bottom:14px;">Quick Access</div>
     <div class="actions">
         <a href="/calendar" class="action-btn">
             <div class="action-icon">📅</div>
-            <div>
-                <div class="action-title">Calendar</div>
-                <div class="action-sub">View and manage scheduled jobs</div>
-            </div>
+            <div class="action-title">Calendar</div>
+            <div class="action-sub">View & manage jobs</div>
         </a>
         <a href="/job-brief" class="action-btn">
             <div class="action-icon">📋</div>
-            <div>
-                <div class="action-title">Job Brief Generator</div>
-                <div class="action-sub">Create and dispatch job briefs to techs</div>
-            </div>
+            <div class="action-title">Job Brief</div>
+            <div class="action-sub">Generate dispatches</div>
         </a>
         <a href="/invoice" class="action-btn">
             <div class="action-icon">🧾</div>
-            <div>
-                <div class="action-title">Invoice Generator</div>
-                <div class="action-sub">Create, preview and send invoices</div>
-            </div>
+            <div class="action-title">Invoices</div>
+            <div class="action-sub">Create & send</div>
         </a>
-        <a href="#" class="action-btn">
-            <div class="action-icon">🧾</div>
-            <div>
-                <div class="action-title">Receipts</div>
-                <div class="action-sub">Coming soon</div>
-            </div>
+        <a href="/settings" class="action-btn">
+            <div class="action-icon">⚙️</div>
+            <div class="action-title">Settings</div>
+            <div class="action-sub">Integrations & API</div>
         </a>
+    </div>
+
+    <div class="section-title">Field Activity</div>
+    <div class="activity-grid">
+        {% if jobs %}
+            {% for job in jobs %}
+            <div class="job-row">
+                <div class="job-row-header" onclick="toggleDetail({{ job.id }})">
+                    <div class="job-left">
+                        <div class="status-dot dot-{% if not job.tech_confirmed and job.tech_assigned %}unconfirmed{% else %}{{ job.status }}{% endif %}"></div>
+                        <div>
+                            <div class="job-name">{{ job.title }}</div>
+                            <div class="job-time">{{ job.start_time.strftime('%a %b %d · %I:%M %p') }}{% if job.location %} · {{ job.location }}{% endif %}</div>
+                        </div>
+                    </div>
+                    <div class="job-right">
+                        {% if job.tech_assigned %}
+                            <span class="tech-name">{{ job.tech_assigned }}</span>
+                            {% if not job.tech_confirmed %}
+                                <span class="badge badge-warn">Unconfirmed</span>
+                            {% elif job.status == 'in_progress' %}
+                                <span class="badge badge-purple">On Site</span>
+                            {% elif job.status == 'complete' %}
+                                <span class="badge badge-green">Complete</span>
+                            {% else %}
+                                <span class="badge badge-blue">Confirmed</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-gray">Unassigned</span>
+                        {% endif %}
+                        <span class="chevron" id="chev-{{ job.id }}">▶</span>
+                    </div>
+                </div>
+
+                <div class="job-detail" id="detail-{{ job.id }}">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <strong>Platform</strong>
+                            <span class="val">{{ job.platform | capitalize }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>Tech Pay</strong>
+                            <span class="val">{% if job.tech_pay %}${{ '%.2f' | format(job.tech_pay) }}{% else %}—{% endif %}</span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>Job Value</strong>
+                            <span class="val">{% if job.job_pay %}${{ '%.2f' | format(job.job_pay) }}{% else %}—{% endif %}</span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>Confirmed At</strong>
+                            <span class="val">{% if job.confirmed_at %}{{ job.confirmed_at.strftime('%b %d %I:%M %p') }}{% else %}—{% endif %}</span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>Clocked In</strong>
+                            <span class="val">{% if job.clock_in_at %}{{ job.clock_in_at.strftime('%I:%M %p') }}{% else %}—{% endif %}</span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>Clocked Out</strong>
+                            <span class="val">{% if job.clock_out_at %}{{ job.clock_out_at.strftime('%I:%M %p') }}{% else %}—{% endif %}</span>
+                        </div>
+                    </div>
+
+                    {% if job.employee_notes %}
+                    <div class="employee-notes">
+                        <strong>Tech Notes</strong>
+                        {{ job.employee_notes }}
+                    </div>
+                    {% endif %}
+
+                    {% if job.tech_assigned and not job.tech_confirmed and job.status == 'scheduled' %}
+                    <div class="alert-banner">
+                        ⚠️ {{ job.tech_assigned }} has not confirmed this job yet.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-activity">No jobs yet — add your first job from the Calendar.</div>
+        {% endif %}
     </div>
 
 </div>
 
 <script>
     function updateClock() {
-        const now = new Date();
-        document.getElementById('clock').textContent = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        document.getElementById('clock').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     }
     setInterval(updateClock, 1000);
     updateClock();
 
-    async function loadStats() {
-        try {
-            const jobs = await fetch('/api/jobs').then(r => r.json());
-            const today = new Date().toDateString();
-            document.getElementById('today-count').textContent = jobs.filter(j => new Date(j.start).toDateString() === today).length;
-            const conflicts = await fetch('/api/conflicts').then(r => r.json());
-            document.getElementById('conflict-count').textContent = conflicts.length;
-            document.getElementById('invoice-count').textContent = '0';
-        } catch(e) {}
+    function toggleDetail(id) {
+        const detail = document.getElementById(`detail-${id}`);
+        const chev   = document.getElementById(`chev-${id}`);
+        const open   = detail.classList.toggle('open');
+        chev.classList.toggle('open', open);
     }
-    loadStats();
 </script>
 </body>
 </html>
