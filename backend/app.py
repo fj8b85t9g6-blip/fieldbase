@@ -309,6 +309,57 @@ def mark_invoice_sent(job_id):
     return jsonify({'success': True})
 
 # ─────────────────────────────────────────
+# TEAM ROUTES
+# ─────────────────────────────────────────
+
+@app.route('/team', methods=['GET', 'POST'])
+@login_required
+@owner_required
+def team():
+    if request.method == 'POST':
+        name     = request.form.get('name', '').strip()
+        email    = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+
+        if not all([name, email, password]):
+            flash('All fields are required.')
+            return redirect(url_for('team'))
+
+        if User.query.filter_by(email=email).first():
+            flash('An account with that email already exists.')
+            return redirect(url_for('team'))
+
+        pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        employee = User(
+            company_id    = current_user.company_id,
+            email         = email,
+            name          = name,
+            password_hash = pw_hash,
+            role          = 'employee'
+        )
+        db.session.add(employee)
+        db.session.commit()
+        flash(f'{name} has been added to your team.')
+        return redirect(url_for('team'))
+
+    employees = User.query.filter_by(
+        company_id=current_user.company_id,
+        role='employee'
+    ).order_by(User.created_at).all()
+    return render_template('team.html', employees=employees, company=current_user.company)
+
+
+@app.route('/team/<int:user_id>/deactivate', methods=['POST'])
+@login_required
+@owner_required
+def deactivate_employee(user_id):
+    employee = User.query.filter_by(id=user_id, company_id=current_user.company_id, role='employee').first_or_404()
+    employee.is_active = not employee.is_active
+    db.session.commit()
+    return jsonify({'success': True, 'active': employee.is_active})
+
+
+# ─────────────────────────────────────────
 # EMPLOYEE API ROUTES
 # ─────────────────────────────────────────
 

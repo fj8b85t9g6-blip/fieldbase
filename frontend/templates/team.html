@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FieldBase — Team</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1f2937; }
+    header { background: #1e3a5f; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 20px; color: #fff; font-weight: 700; }
+    header .meta { display: flex; align-items: center; gap: 20px; }
+    header .company { color: #94a3b8; font-size: 13px; }
+    header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+    header a:hover { color: #fff; }
+    nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 32px; display: flex; gap: 4px; }
+    nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    nav a:hover { color: #1e3a5f; }
+    nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
+    .container { max-width: 800px; margin: 32px auto; padding: 0 24px; }
+    h2 { font-size: 22px; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; }
+    .subtitle { color: #6b7280; font-size: 14px; margin-bottom: 28px; }
+    .flash-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 10px 16px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
+    .flash-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 16px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
+
+    /* Add Employee Card */
+    .add-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 28px; margin-bottom: 28px; }
+    .add-card h3 { font-size: 16px; font-weight: 700; color: #1f2937; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #e5e7eb; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .field input { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    .field input:focus { border-color: #1e3a5f; }
+    .field .hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+    .btn-add { background: #1e3a5f; color: #fff; border: none; padding: 11px 28px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px; transition: background 0.2s; }
+    .btn-add:hover { background: #163055; }
+
+    /* Employee List */
+    .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .list-header h3 { font-size: 16px; font-weight: 700; color: #1f2937; }
+    .count { font-size: 13px; color: #6b7280; }
+    .employee-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); padding: 18px 20px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+    .employee-card.inactive { opacity: 0.55; }
+    .emp-left { display: flex; align-items: center; gap: 14px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; background: #1e3a5f; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; }
+    .emp-name { font-size: 15px; font-weight: 600; color: #1f2937; }
+    .emp-email { font-size: 13px; color: #6b7280; margin-top: 2px; }
+    .emp-meta { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+    .emp-right { display: flex; align-items: center; gap: 12px; }
+    .status-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+    .status-badge.active   { background: #dcfce7; color: #166534; }
+    .status-badge.inactive { background: #f3f4f6; color: #6b7280; }
+    .btn-toggle { border: 1px solid #d1d5db; background: #fff; color: #374151; padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+    .btn-toggle:hover { border-color: #1e3a5f; color: #1e3a5f; }
+    .empty { text-align: center; padding: 40px; color: #9ca3af; font-size: 14px; background: #fff; border-radius: 8px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>FieldBase</h1>
+  <div class="meta">
+    <span class="company">{{ company.name }}</span>
+    <a href="/logout">Sign Out</a>
+  </div>
+</header>
+<nav>
+  <a href="/">Dashboard</a>
+  <a href="/calendar">Calendar</a>
+  <a href="/job-brief">Job Brief</a>
+  <a href="/invoice">Invoices</a>
+  <a href="/team" class="active">Team</a>
+  <a href="/settings">Settings</a>
+</nav>
+
+<div class="container">
+  <h2>Team</h2>
+  <p class="subtitle">Add and manage the employees connected to your company.</p>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="{% if 'added' in messages[0] %}flash-success{% else %}flash-error{% endif %}">{{ messages[0] }}</div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="add-card">
+    <h3>Add New Employee</h3>
+    <form method="POST" action="/team">
+      <div class="form-row">
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" name="name" required placeholder="e.g. Marcus Johnson">
+        </div>
+        <div class="field">
+          <label>Email Address</label>
+          <input type="email" name="email" required placeholder="employee@email.com">
+        </div>
+      </div>
+      <div class="field" style="max-width: 320px;">
+        <label>Temporary Password</label>
+        <input type="text" name="password" required placeholder="They can change this later" minlength="6">
+        <div class="hint">Share this with your employee so they can log in.</div>
+      </div>
+      <button type="submit" class="btn-add">Add Employee</button>
+    </form>
+  </div>
+
+  <div class="list-header">
+    <h3>Current Team</h3>
+    <span class="count">{{ employees|length }} employee{{ 's' if employees|length != 1 else '' }}</span>
+  </div>
+
+  {% if employees %}
+    {% for emp in employees %}
+    <div class="employee-card {% if not emp.is_active %}inactive{% endif %}" id="emp-{{ emp.id }}">
+      <div class="emp-left">
+        <div class="avatar">{{ emp.name[0].upper() }}</div>
+        <div>
+          <div class="emp-name">{{ emp.name }}</div>
+          <div class="emp-email">{{ emp.email }}</div>
+          <div class="emp-meta">Added {{ emp.created_at.strftime('%b %d, %Y') }}</div>
+        </div>
+      </div>
+      <div class="emp-right">
+        <span class="status-badge {% if emp.is_active %}active{% else %}inactive{% endif %}" id="badge-{{ emp.id }}">
+          {{ 'Active' if emp.is_active else 'Inactive' }}
+        </span>
+        <button class="btn-toggle" onclick="toggleEmployee({{ emp.id }}, this)">
+          {{ 'Deactivate' if emp.is_active else 'Reactivate' }}
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">No employees yet — add your first team member above.</div>
+  {% endif %}
+</div>
+
+<script>
+  function toggleEmployee(id, btn) {
+    fetch(`/team/${id}/deactivate`, { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        const card  = document.getElementById(`emp-${id}`);
+        const badge = document.getElementById(`badge-${id}`);
+        if (data.active) {
+          card.classList.remove('inactive');
+          badge.className = 'status-badge active';
+          badge.textContent = 'Active';
+          btn.textContent = 'Deactivate';
+        } else {
+          card.classList.add('inactive');
+          badge.className = 'status-badge inactive';
+          badge.textContent = 'Inactive';
+          btn.textContent = 'Reactivate';
+        }
+      });
+  }
+</script>
+</body>
+</html>
