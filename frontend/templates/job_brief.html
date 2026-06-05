@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FieldBase — Job Brief Generator</title>
+<title>FieldBase — SOW Generator</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
@@ -47,12 +47,12 @@
 <body>
 <header>
   <h1>FieldBase</h1>
-  <span>/ Job Brief Generator</span>
+  <span>/ SOW Generator</span>
 </header>
 <nav style="background:#fff;border-bottom:1px solid #dde3ec;padding:0 40px;display:flex;gap:4px;">
   <a href="/" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Dashboard</a>
   <a href="/calendar" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Calendar</a>
-  <a href="/job-brief" style="padding:14px 16px;font-size:14px;font-weight:600;color:#1e3a5f;text-decoration:none;border-bottom:2px solid #1e3a5f;">Job Brief</a>
+  <a href="/job-brief" style="padding:14px 16px;font-size:14px;font-weight:600;color:#1e3a5f;text-decoration:none;border-bottom:2px solid #1e3a5f;">SOW</a>
   <a href="/invoice" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Invoices</a>
 </nav>
 <div class="container">
@@ -169,18 +169,18 @@
   </div>
 
   <div class="card">
-    <h2>Generated Brief</h2>
+    <h2>Generated SOW</h2>
     <div class="btn-row">
       <button class="btn" onclick="generateBrief()">Generate Brief</button>
       <button class="btn btn-secondary" onclick="copyBrief()">Copy to Clipboard</button>
       <button class="btn btn-secondary" onclick="printBrief()">Print / Save PDF</button>
     </div>
     <div style="margin-top:20px;">
-      <div class="preview-box" id="previewBox">Brief will appear here after you click Generate.</div>
+      <div class="preview-box" id="previewBox">SOW will appear here after you click Generate.</div>
     </div>
     <div class="confirmation-banner" id="confirmBanner">
       <div class="dot"></div>
-      <span style="font-size:13px;color:#2e7d32;font-weight:500;">Brief generated and ready to dispatch. Copy and send to assigned tech for confirmation before job is accepted.</span>
+      <span style="font-size:13px;color:#2e7d32;font-weight:500;">SOW generated and ready to dispatch. Copy and send to assigned tech for confirmation before job is accepted.</span>
     </div>
   </div>
 
@@ -207,7 +207,7 @@ function generateBrief() {
   const generated = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) + ' at ' + now.toLocaleTimeString();
   const urgencyLabel = urgency === 'urgent' ? '*** URGENT ***' : urgency === 'medium' ? '** MEDIUM PRIORITY **' : 'Standard';
   const brief = `════════════════════════════════════════
-FIELDBASE — JOB BRIEF
+FIELDBASE — SCOPE OF WORK
 Generated: ${generated}
 ════════════════════════════════════════
 
@@ -251,7 +251,7 @@ before it is considered dispatched.
 Reply CONFIRM to accept or DECLINE to reject.
 
 ════════════════════════════════════════
-FIELDBASE — END OF BRIEF
+FIELDBASE — END OF SOW
 ════════════════════════════════════════`;
   document.getElementById('previewBox').textContent = brief;
   document.getElementById('confirmBanner').classList.add('show');

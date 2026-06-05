@@ -77,6 +77,17 @@
         .employee-notes strong { display: block; font-size: 11px; color: #8b5cf6; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
         .alert-banner { background: #fef9c3; border: 1px solid #fde047; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #713f12; margin-top: 14px; display: flex; align-items: center; gap: 8px; }
 
+        .payment-section { margin-top: 14px; padding: 12px 14px; background: #f9fafb; border-radius: 6px; border-left: 3px solid #22c55e; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .payment-section label { font-size: 13px; font-weight: 600; color: #374151; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+        .payment-section input[type=checkbox] { width: 16px; height: 16px; accent-color: #22c55e; cursor: pointer; }
+        .payment-section .pay-amount-wrap { display: flex; align-items: center; gap: 8px; }
+        .payment-section .pay-amount-wrap span { font-size: 13px; color: #6b7280; }
+        .payment-section input[type=number] { width: 110px; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+        .payment-section input[type=number]:focus { outline: none; border-color: #22c55e; }
+        .payment-section .pay-save-btn { padding: 5px 14px; background: #22c55e; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: auto; }
+        .payment-section .pay-save-btn:hover { background: #16a34a; }
+        .badge-paid { background: #dcfce7; color: #166534; }
+
         .empty-activity { text-align: center; padding: 40px; color: #9ca3af; font-size: 14px; background: #fff; border-radius: 8px; }
 
         @media (max-width: 720px) {
@@ -101,7 +112,7 @@
 <nav>
     <a href="/" class="active">Dashboard</a>
     <a href="/calendar">Calendar</a>
-    <a href="/job-brief">Job Brief</a>
+    <a href="/job-brief">SOW</a>
     <a href="/invoice">Invoices</a>
     <a href="/team">Team</a>
     <a href="/settings">Settings</a>
@@ -141,8 +152,8 @@
         </a>
         <a href="/job-brief" class="action-btn">
             <div class="action-icon">📋</div>
-            <div class="action-title">Job Brief</div>
-            <div class="action-sub">Generate dispatches</div>
+            <div class="action-title">SOW</div>
+            <div class="action-sub">Scope of Work</div>
         </a>
         <a href="/invoice" class="action-btn">
             <div class="action-icon">🧾</div>
@@ -170,6 +181,9 @@
                         </div>
                     </div>
                     <div class="job-right">
+                        {% if job.payment_received %}
+                            <span class="badge badge-paid">Paid</span>
+                        {% endif %}
                         {% if job.tech_assigned %}
                             <span class="tech-name">{{ job.tech_assigned }}</span>
                             {% if not job.tech_confirmed %}
@@ -228,6 +242,24 @@
                         ⚠️ {{ job.tech_assigned }} has not confirmed this job yet.
                     </div>
                     {% endif %}
+
+                    <div class="payment-section">
+                        <label>
+                            <input type="checkbox" id="pay-check-{{ job.id }}"
+                                {% if job.payment_received %}checked{% endif %}
+                                onchange="togglePayField({{ job.id }})">
+                            Payment Received
+                        </label>
+                        <div class="pay-amount-wrap" id="pay-amount-{{ job.id }}" style="{% if not job.payment_received %}display:none{% endif %}">
+                            <span>Original: {% if job.job_pay %}${{ '%.2f'|format(job.job_pay) }}{% else %}—{% endif %}</span>
+                            <span>·</span>
+                            <span>Paid: $<input type="number" step="0.01" min="0"
+                                id="pay-val-{{ job.id }}"
+                                value="{{ job.amount_paid if job.amount_paid else '' }}"
+                                placeholder="{{ '%.2f'|format(job.job_pay) if job.job_pay else '0.00' }}"></span>
+                        </div>
+                        <button class="pay-save-btn" onclick="savePayment({{ job.id }})">Save</button>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -250,6 +282,23 @@
         const chev   = document.getElementById(`chev-${id}`);
         const open   = detail.classList.toggle('open');
         chev.classList.toggle('open', open);
+    }
+
+    function togglePayField(id) {
+        const checked = document.getElementById(`pay-check-${id}`).checked;
+        document.getElementById(`pay-amount-${id}`).style.display = checked ? 'flex' : 'none';
+    }
+
+    async function savePayment(id) {
+        const received = document.getElementById(`pay-check-${id}`).checked;
+        const valEl    = document.getElementById(`pay-val-${id}`);
+        const amount   = valEl && valEl.value !== '' ? parseFloat(valEl.value) : null;
+        const res = await fetch(`/api/jobs/${id}/payment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ payment_received: received, amount_paid: amount })
+        });
+        if (res.ok) location.reload();
     }
 </script>
 </body>

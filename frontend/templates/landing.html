@@ -75,15 +75,27 @@
     footer p { color: #4b6b8a; font-size: 13px; }
 
     @media (max-width: 768px) {
-      .nav { padding: 16px 20px; }
-      .hero { padding: 64px 24px 56px; }
-      .hero h1 { font-size: 34px; }
+      .nav { padding: 14px 20px; }
+      .nav-brand { font-size: 18px; }
+      .btn-signin, .btn-signup { padding: 8px 14px; font-size: 13px; }
+      .hero { padding: 56px 20px 48px; }
+      .hero h1 { font-size: 30px; letter-spacing: -0.5px; }
       .hero p { font-size: 16px; }
-      .section { padding: 56px 24px; }
+      .hero-btn-primary, .hero-btn-secondary { padding: 14px 28px; font-size: 15px; }
+      .stats-bar { gap: 20px; padding: 24px 20px; flex-direction: column; align-items: center; }
+      .stat .num { font-size: 26px; }
+      .section { padding: 48px 20px; }
+      .section h2 { font-size: 28px; }
+      .section .lead { font-size: 16px; margin-bottom: 36px; }
       .features-grid { grid-template-columns: 1fr; }
-      .steps { grid-template-columns: 1fr 1fr; }
+      .how-section { padding: 48px 20px; }
+      .steps { grid-template-columns: 1fr 1fr; gap: 20px; }
       .roles { grid-template-columns: 1fr; }
-      .stats-bar { gap: 32px; padding: 24px; }
+      .role-card { padding: 24px; }
+      .cta { padding: 56px 20px; }
+      .cta h2 { font-size: 28px; }
+      .cta p { font-size: 16px; }
+      footer { padding: 24px 20px; }
     }
   </style>
 </head>
@@ -158,8 +170,8 @@
     </div>
     <div class="feature-card">
       <div class="feature-icon">🧾</div>
-      <h3>Invoicing & Job Briefs</h3>
-      <p>Generate professional job briefs for every dispatch. Create and print invoices directly from the app.</p>
+      <h3>Invoicing & SOW</h3>
+      <p>Generate professional Scopes of Work for every dispatch. Create and print invoices directly from the app.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🔗</div>
@@ -213,7 +225,7 @@
         <li>See live field status — confirmed, on site, complete</li>
         <li>Get alerted when a tech hasn't confirmed</li>
         <li>Read tech field notes as they're submitted</li>
-        <li>Generate job briefs and invoices</li>
+        <li>Generate Scopes of Work and invoices</li>
         <li>Connect WorkMarket & Field Nation</li>
         <li>Manage your team — add, deactivate, reactivate</li>
       </ul>

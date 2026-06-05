@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from datetime import datetime
 from functools import wraps
+from sqlalchemy import text
 import bcrypt
 import os
 
@@ -73,10 +74,12 @@ class Job(db.Model):
     clock_out_at    = db.Column(db.DateTime)
     completed_at    = db.Column(db.DateTime)
     employee_notes  = db.Column(db.Text)
-    invoice_sent    = db.Column(db.Boolean, default=False)
-    invoice_sent_at = db.Column(db.DateTime)
-    notes           = db.Column(db.Text)
-    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    invoice_sent      = db.Column(db.Boolean, default=False)
+    invoice_sent_at   = db.Column(db.DateTime)
+    payment_received  = db.Column(db.Boolean, default=False)
+    amount_paid       = db.Column(db.Float)
+    notes             = db.Column(db.Text)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class Conflict(db.Model):
@@ -310,6 +313,18 @@ def mark_invoice_sent(job_id):
     db.session.commit()
     return jsonify({'success': True})
 
+
+@app.route('/api/jobs/<int:job_id>/payment', methods=['POST'])
+@login_required
+@owner_required
+def update_payment(job_id):
+    job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    data = request.json
+    job.payment_received = data.get('payment_received', False)
+    job.amount_paid      = data.get('amount_paid')
+    db.session.commit()
+    return jsonify({'success': True})
+
 # ─────────────────────────────────────────
 # TEAM ROUTES
 # ─────────────────────────────────────────
@@ -494,6 +509,16 @@ def detect_and_save_conflicts(company_id):
 
 with app.app_context():
     db.create_all()
+    with db.engine.connect() as conn:
+        for col, ddl in [
+            ('payment_received', 'ALTER TABLE jobs ADD COLUMN payment_received BOOLEAN DEFAULT FALSE'),
+            ('amount_paid',      'ALTER TABLE jobs ADD COLUMN amount_paid FLOAT'),
+        ]:
+            try:
+                conn.execute(text(ddl))
+                conn.commit()
+            except Exception:
+                conn.rollback()
 
 if __name__ == '__main__':
     app.run(debug=True, port=5050)
