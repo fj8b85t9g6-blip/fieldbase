@@ -99,6 +99,17 @@ class JobPhoto(db.Model):
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class JobDocument(db.Model):
+    __tablename__ = 'job_documents'
+    id            = db.Column(db.Integer, primary_key=True)
+    job_id        = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    company_id    = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    filename      = db.Column(db.String(300), nullable=False)
+    original_name = db.Column(db.String(300))
+    uploaded_by   = db.Column(db.String(200))
+    uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class Conflict(db.Model):
     __tablename__ = 'conflicts'
     id          = db.Column(db.Integer, primary_key=True)
@@ -364,6 +375,14 @@ def delete_job(job_id):
     Conflict.query.filter(
         (Conflict.job_a_id == job_id) | (Conflict.job_b_id == job_id)
     ).delete(synchronize_session=False)
+    for doc in JobDocument.query.filter_by(job_id=job_id).all():
+        try: os.remove(os.path.join(DOC_FOLDER, doc.filename))
+        except FileNotFoundError: pass
+        db.session.delete(doc)
+    for photo in JobPhoto.query.filter_by(job_id=job_id).all():
+        try: os.remove(os.path.join(UPLOAD_FOLDER, photo.filename))
+        except FileNotFoundError: pass
+        db.session.delete(photo)
     db.session.delete(job)
     db.session.commit()
     return jsonify({'success': True})
@@ -619,6 +638,69 @@ def delete_photo(photo_id):
     except FileNotFoundError:
         pass
     db.session.delete(photo)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ─────────────────────────────────────────
+# DOCUMENT ROUTES
+# ─────────────────────────────────────────
+
+DOC_FOLDER = os.path.join(_ROOT, 'frontend', 'static', 'uploads', 'docs')
+os.makedirs(DOC_FOLDER, exist_ok=True)
+ALLOWED_DOC_EXT = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'txt', 'csv'}
+
+def allowed_doc(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_DOC_EXT
+
+
+@app.route('/api/jobs/<int:job_id>/documents', methods=['POST'])
+@login_required
+@owner_required
+def upload_document(job_id):
+    Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    if 'document' not in request.files:
+        return jsonify({'error': 'No file'}), 400
+    f = request.files['document']
+    if not f or not allowed_doc(f.filename):
+        return jsonify({'error': 'Invalid file type'}), 400
+    original_name = f.filename
+    ext      = f.filename.rsplit('.', 1)[1].lower()
+    filename = f'{uuid.uuid4().hex}.{ext}'
+    f.save(os.path.join(DOC_FOLDER, filename))
+    doc = JobDocument(job_id=job_id, company_id=current_user.company_id,
+                      filename=filename, original_name=original_name,
+                      uploaded_by=current_user.name)
+    db.session.add(doc)
+    db.session.commit()
+    return jsonify({'success': True, 'id': doc.id, 'name': original_name,
+                    'url': f'/static/uploads/docs/{filename}'})
+
+
+@app.route('/api/jobs/<int:job_id>/documents', methods=['GET'])
+@login_required
+def get_documents(job_id):
+    Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    docs = JobDocument.query.filter_by(job_id=job_id).order_by(JobDocument.uploaded_at).all()
+    return jsonify([{
+        'id':          d.id,
+        'name':        d.original_name or d.filename,
+        'url':         f'/static/uploads/docs/{d.filename}',
+        'uploaded_by': d.uploaded_by,
+        'uploaded_at': d.uploaded_at.strftime('%b %d, %Y')
+    } for d in docs])
+
+
+@app.route('/api/documents/<int:doc_id>', methods=['DELETE'])
+@login_required
+@owner_required
+def delete_document(doc_id):
+    doc = JobDocument.query.filter_by(id=doc_id, company_id=current_user.company_id).first_or_404()
+    try:
+        os.remove(os.path.join(DOC_FOLDER, doc.filename))
+    except FileNotFoundError:
+        pass
+    db.session.delete(doc)
     db.session.commit()
     return jsonify({'success': True})
 

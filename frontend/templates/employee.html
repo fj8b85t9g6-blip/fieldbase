@@ -182,6 +182,11 @@
           {% endif %}
         </div>
 
+        <div class="notes-section" style="border-top:1px solid #f3f4f6;padding:14px 20px;" id="emp-docs-section-{{ job.id }}">
+          <label>Documents</label>
+          <div id="emp-doc-list-{{ job.id }}" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
         <div class="notes-section" style="border-top:1px solid #f3f4f6;padding:14px 20px;">
           <label>Photos</label>
           <div id="emp-photo-grid-{{ job.id }}" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;"></div>
@@ -267,10 +272,34 @@
         ).join('');
     }
 
+    async function empLoadDocs(jobId) {
+        const res  = await fetch(`/api/jobs/${jobId}/documents`);
+        const docs = await res.json();
+        const list = document.getElementById(`emp-doc-list-${jobId}`);
+        const section = document.getElementById(`emp-docs-section-${jobId}`);
+        if (!list) return;
+        if (docs.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        section.style.display = 'block';
+        list.innerHTML = docs.map(d => `
+            <a href="${d.url}" target="_blank" download="${d.name}"
+               style="display:flex;align-items:center;gap:8px;background:#f9fafc;border:1px solid #d0d7e3;border-radius:6px;padding:8px 12px;text-decoration:none;color:#1e3a5f;">
+              <span style="font-size:16px;">📄</span>
+              <div>
+                <div style="font-size:13px;font-weight:600;">${d.name}</div>
+                <div style="font-size:11px;color:#9ca3af;">Added ${d.uploaded_at}</div>
+              </div>
+              <span style="margin-left:auto;font-size:12px;font-weight:600;color:#6b7280;">Download</span>
+            </a>`).join('');
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('[id^="emp-photo-grid-"]').forEach(el => {
             const jobId = el.id.replace('emp-photo-grid-', '');
             empLoadPhotos(jobId);
+            empLoadDocs(jobId);
         });
     });
 

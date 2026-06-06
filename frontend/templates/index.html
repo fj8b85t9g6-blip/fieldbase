@@ -266,6 +266,17 @@
                         {% endif %}
                     </div>
 
+                    <div style="margin-top:14px;" id="docs-{{ job.id }}">
+                      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:#9ca3af;margin-bottom:8px;">Documents</div>
+                      <div id="doc-list-{{ job.id }}" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+                      <button onclick="document.getElementById('doc-input-{{ job.id }}').click()"
+                        style="font-size:12px;color:#1e3a5f;font-weight:600;background:none;border:1.5px dashed #d1d5db;border-radius:6px;padding:6px 14px;cursor:pointer;">
+                        + Add Document
+                      </button>
+                      <input type="file" id="doc-input-{{ job.id }}" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv" style="display:none"
+                        onchange="uploadDoc({{ job.id }}, this)">
+                    </div>
+
                     <div style="margin-top:14px;" id="photos-{{ job.id }}">
                       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:#9ca3af;margin-bottom:8px;">Photos</div>
                       <div id="photo-grid-{{ job.id }}" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
@@ -331,6 +342,38 @@
         }
     }
 
+    async function uploadDoc(jobId, input) {
+        const file = input.files[0];
+        if (!file) return;
+        const form = new FormData();
+        form.append('document', file);
+        const res  = await fetch(`/api/jobs/${jobId}/documents`, { method: 'POST', body: form });
+        if (res.ok) loadDocs(jobId);
+        input.value = '';
+    }
+
+    async function loadDocs(jobId) {
+        const res  = await fetch(`/api/jobs/${jobId}/documents`);
+        const docs = await res.json();
+        const list = document.getElementById(`doc-list-${jobId}`);
+        if (!list) return;
+        list.innerHTML = docs.map(d => `
+            <div style="display:flex;align-items:center;gap:8px;background:#f9fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;">
+              <span>📄</span>
+              <a href="${d.url}" target="_blank" download="${d.name}"
+                 style="font-size:13px;font-weight:500;color:#1e3a5f;text-decoration:none;flex:1;">${d.name}</a>
+              <span style="font-size:11px;color:#9ca3af;">${d.uploaded_at}</span>
+              <button onclick="deleteDoc(${d.id}, ${jobId})"
+                style="background:none;border:none;color:#ef4444;font-size:14px;cursor:pointer;">✕</button>
+            </div>`).join('');
+    }
+
+    async function deleteDoc(docId, jobId) {
+        if (!confirm('Remove this document?')) return;
+        await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
+        loadDocs(jobId);
+    }
+
     async function uploadPhoto(jobId, input) {
         const file = input.files[0];
         if (!file) return;
@@ -368,7 +411,7 @@
         const chev   = document.getElementById(`chev-${id}`);
         const open   = detail.classList.toggle('open');
         chev.classList.toggle('open', open);
-        if (open) loadPhotos(id);
+        if (open) { loadPhotos(id); loadDocs(id); }
     }
 
     function togglePayField(id) {

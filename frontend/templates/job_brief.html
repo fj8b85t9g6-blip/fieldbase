@@ -181,6 +181,18 @@
   </div>
 
   <div class="card">
+    <h2>Supporting Documents</h2>
+    <p style="font-size:13px;color:#5a6a7e;margin-bottom:16px;">Attach files the employee will need — work orders, site maps, diagrams, etc. Documents are uploaded automatically when you Save to Calendar.</p>
+    <div id="doc-pending-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+    <button type="button" onclick="document.getElementById('doc-file-input').click()"
+      style="background:none;border:1.5px dashed #d0d7e3;border-radius:6px;padding:10px 20px;font-size:13px;font-weight:600;color:#1e3a5f;cursor:pointer;transition:border-color 0.2s;">
+      + Add Document
+    </button>
+    <input type="file" id="doc-file-input" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv" style="display:none" onchange="addPendingDocs(this)">
+    <p style="font-size:11px;color:#9ca3af;margin-top:8px;">PDF, Word, Excel, images, CSV supported</p>
+  </div>
+
+  <div class="card">
     <h2>Generated SOW</h2>
     <div class="btn-row">
       <button class="btn" onclick="generateBrief()">Generate Brief</button>
@@ -325,10 +337,41 @@ async function saveToCalendar() {
   });
 
   if (res.ok) {
+    const { id: jobId } = await res.json();
+    // Upload any pending documents
+    for (const file of pendingDocs) {
+      const form = new FormData();
+      form.append('document', file);
+      await fetch(`/api/jobs/${jobId}/documents`, { method: 'POST', body: form });
+    }
+    pendingDocs = [];
+    renderPendingDocs();
     document.getElementById('savedBanner').style.display = 'flex';
   } else {
     alert('Failed to save job. Please check the form and try again.');
   }
+}
+
+let pendingDocs = [];
+
+function addPendingDocs(input) {
+  for (const file of input.files) pendingDocs.push(file);
+  input.value = '';
+  renderPendingDocs();
+}
+
+function removePendingDoc(index) {
+  pendingDocs.splice(index, 1);
+  renderPendingDocs();
+}
+
+function renderPendingDocs() {
+  const list = document.getElementById('doc-pending-list');
+  list.innerHTML = pendingDocs.map((f, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#f9fafc;border:1px solid #d0d7e3;border-radius:6px;padding:8px 12px;">
+      <span style="font-size:13px;color:#374151;">📄 ${f.name}</span>
+      <button onclick="removePendingDoc(${i})" style="background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;line-height:1;">✕</button>
+    </div>`).join('');
 }
 
 function printBrief() {
