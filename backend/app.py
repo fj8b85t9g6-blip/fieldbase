@@ -310,6 +310,16 @@ def add_job():
     return jsonify({'success': True, 'id': job.id})
 
 
+@app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
+@login_required
+@owner_required
+def delete_job(job_id):
+    job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    db.session.delete(job)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 @app.route('/api/conflicts')
 @login_required
 @owner_required

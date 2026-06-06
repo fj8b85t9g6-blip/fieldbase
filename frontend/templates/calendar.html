@@ -99,6 +99,23 @@
     <div id="calendar"></div>
 </div>
 
+<!-- Job Detail Modal -->
+<div id="job-modal" class="modal-overlay">
+    <div class="modal">
+        <h2 id="modal-title"></h2>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+            <div style="font-size:13px;color:#5a6a7e;"><strong style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Platform</strong><span id="modal-platform"></span></div>
+            <div style="font-size:13px;color:#5a6a7e;"><strong style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Location</strong><span id="modal-location"></span></div>
+            <div style="font-size:13px;color:#5a6a7e;"><strong style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Assigned Employee</strong><span id="modal-tech"></span></div>
+            <div style="font-size:13px;color:#5a6a7e;"><strong style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Time</strong><span id="modal-time"></span></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeJobModal()">Close</button>
+            <button class="btn-primary" style="background:#dc2626;" onclick="deleteJob()">Delete Job</button>
+        </div>
+    </div>
+</div>
+
 <!-- Add Job Modal -->
 <div id="add-modal" class="modal-overlay">
     <div class="modal">
@@ -159,12 +176,40 @@
             events: '/api/jobs',
             height: 'auto',
             eventClick: function(info) {
-                alert(`${info.event.title}\nPlatform: ${info.event.extendedProps.platform || 'N/A'}\nLocation: ${info.event.extendedProps.location || 'N/A'}\nEmployee: ${info.event.extendedProps.tech || 'Unassigned'}`);
+                openJobModal(info.event);
             }
         });
         calendar.render();
         await loadConflicts();
     });
+
+    let activeJobId = null;
+
+    function openJobModal(event) {
+        activeJobId = event.id;
+        const p = event.extendedProps;
+        const fmt = d => d ? d.toLocaleString([], {weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+        document.getElementById('modal-title').textContent    = event.title;
+        document.getElementById('modal-platform').textContent = p.platform || 'N/A';
+        document.getElementById('modal-location').textContent = p.location || 'N/A';
+        document.getElementById('modal-tech').textContent     = p.tech || 'Unassigned';
+        document.getElementById('modal-time').textContent     = `${fmt(event.start)} – ${fmt(event.end)}`;
+        document.getElementById('job-modal').classList.add('show');
+    }
+
+    function closeJobModal() {
+        document.getElementById('job-modal').classList.remove('show');
+        activeJobId = null;
+    }
+
+    async function deleteJob() {
+        if (!activeJobId) return;
+        if (!confirm('Delete this job? This cannot be undone.')) return;
+        await fetch(`/api/jobs/${activeJobId}`, { method: 'DELETE' });
+        closeJobModal();
+        calendar.refetchEvents();
+        await loadConflicts();
+    }
 
     async function loadConflicts() {
         const conflicts = await fetch('/api/conflicts').then(r => r.json());
