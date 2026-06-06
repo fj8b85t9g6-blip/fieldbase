@@ -125,7 +125,7 @@
   <div class="card">
     <h2>Upload Receipt</h2>
     <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-      <div style="font-size:32px;">📎</div>
+      <div style="font-size:32px;">+</div>
       <p><strong>Click to upload</strong> or drag and drop</p>
       <p style="font-size:12px;margin-top:4px;">JPG, PNG, PDF, HEIC supported</p>
       <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.gif,.pdf,.heic" onchange="previewFile(this)">
@@ -203,7 +203,7 @@
                 <img class="preview-img" src="/uploads/receipts/{{ r.filename }}" alt="receipt">
               </a>
             {% else %}
-              <a href="/uploads/receipts/{{ r.filename }}" target="_blank" style="color:#1e3a5f;font-size:13px;">📄 View</a>
+              <a href="/uploads/receipts/{{ r.filename }}" target="_blank" style="color:#1e3a5f;font-size:13px;">View</a>
             {% endif %}
           </td>
           <td><span class="badge badge-{{ r.category|lower|replace(' ','') }}">{{ r.category }}</span></td>
