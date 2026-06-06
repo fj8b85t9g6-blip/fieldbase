@@ -87,6 +87,7 @@ class Job(db.Model):
     client_name       = db.Column(db.String(200))
     client_email      = db.Column(db.String(200))
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    external_job_id   = db.Column(db.String(200))  # ID from WorkMarket/FieldNation to prevent dupes
 
 
 class JobPhoto(db.Model):
@@ -991,18 +992,145 @@ def tech_standards_pdf():
     return Response(html, mimetype='text/html',
                     headers={'Content-Disposition': 'attachment; filename=tech_standards.html'})
 
+
+# ─────────────────────────────────────────
+# PLATFORM SYNC — WorkMarket + Field Nation
+# ─────────────────────────────────────────
+
+@app.route('/api/sync-platform', methods=['POST'])
+@login_required
+@owner_required
+def sync_platform():
+    """Pull jobs from WorkMarket and Field Nation using stored API credentials."""
+    import requests as req_lib
+    company_id = current_user.company_id
+    creds = {c.platform: c for c in PlatformCredential.query.filter_by(company_id=company_id).all()}
+    results = {'workmarket': 0, 'fieldnation': 0, 'errors': []}
+
+    # ── WorkMarket ──────────────────────────────────────────────────
+    wm = creds.get('workmarket')
+    if wm and wm.api_key and wm.enabled:
+        try:
+            headers = {'Authorization': f'Bearer {wm.api_key}', 'Accept': 'application/json'}
+            resp = req_lib.get(
+                'https://api.workmarket.com/v1/assignments?status=active&per_page=50',
+                headers=headers, timeout=10
+            )
+            if resp.status_code == 200:
+                assignments = resp.json().get('results', resp.json().get('assignments', []))
+                for a in assignments:
+                    ext_id = f"wm_{a.get('id', '')}"
+                    existing = Job.query.filter_by(company_id=company_id, external_job_id=ext_id).first()
+                    if existing:
+                        continue
+                    # Parse times — WorkMarket uses schedule.from / schedule.through
+                    sched = a.get('schedule', {})
+                    start_str = sched.get('from') or a.get('start_time') or a.get('created_at')
+                    end_str   = sched.get('through') or a.get('end_time') or start_str
+                    if not start_str:
+                        continue
+                    try:
+                        from dateutil import parser as dateparser
+                        start_dt = dateparser.parse(start_str)
+                        end_dt   = dateparser.parse(end_str) if end_str != start_str else start_dt.replace(hour=start_dt.hour+1)
+                    except Exception:
+                        continue
+                    location = a.get('location', {})
+                    addr = location.get('full_address') or location.get('address1') or '' if isinstance(location, dict) else str(location)
+                    job = Job(
+                        company_id=company_id,
+                        title=a.get('title') or a.get('name') or 'WorkMarket Job',
+                        platform='workmarket',
+                        location=addr,
+                        start_time=start_dt,
+                        end_time=end_dt,
+                        status='scheduled',
+                        external_job_id=ext_id,
+                        notes=f"Synced from WorkMarket. ID: {a.get('id', '')}",
+                    )
+                    db.session.add(job)
+                    results['workmarket'] += 1
+                db.session.commit()
+            else:
+                results['errors'].append(f'WorkMarket: HTTP {resp.status_code}')
+        except Exception as e:
+            results['errors'].append(f'WorkMarket: {str(e)}')
+
+    # ── Field Nation ─────────────────────────────────────────────────
+    fn = creds.get('fieldnation')
+    if fn and fn.api_key and fn.enabled:
+        try:
+            headers = {'Authorization': f'Bearer {fn.api_key}', 'Accept': 'application/json'}
+            resp = req_lib.get(
+                'https://app.fieldnation.com/api/rest/v2/workorders?status_id=1,2&per_page=50',
+                headers=headers, timeout=10
+            )
+            if resp.status_code == 200:
+                workorders = resp.json().get('results', {}).get('workorders', resp.json().get('results', []))
+                if isinstance(workorders, dict):
+                    workorders = workorders.get('workorders', [])
+                for wo in workorders:
+                    ext_id = f"fn_{wo.get('id', '')}"
+                    existing = Job.query.filter_by(company_id=company_id, external_job_id=ext_id).first()
+                    if existing:
+                        continue
+                    sched = wo.get('schedule', {}) or {}
+                    start_str = sched.get('start') or wo.get('start_time')
+                    end_str   = sched.get('end')   or wo.get('end_time') or start_str
+                    if not start_str:
+                        continue
+                    try:
+                        from dateutil import parser as dateparser
+                        start_dt = dateparser.parse(start_str)
+                        end_dt   = dateparser.parse(end_str) if end_str and end_str != start_str else start_dt.replace(hour=min(start_dt.hour+1,23))
+                    except Exception:
+                        continue
+                    location = wo.get('location', {}) or {}
+                    addr = location.get('address1') or location.get('city') or '' if isinstance(location, dict) else ''
+                    job = Job(
+                        company_id=company_id,
+                        title=wo.get('title') or 'Field Nation Job',
+                        platform='fieldnation',
+                        location=addr,
+                        start_time=start_dt,
+                        end_time=end_dt,
+                        status='scheduled',
+                        external_job_id=ext_id,
+                        notes=f"Synced from Field Nation. ID: {wo.get('id', '')}",
+                    )
+                    db.session.add(job)
+                    results['fieldnation'] += 1
+                db.session.commit()
+            else:
+                results['errors'].append(f'Field Nation: HTTP {resp.status_code}')
+        except Exception as e:
+            results['errors'].append(f'Field Nation: {str(e)}')
+
+    detect_and_save_conflicts(company_id)
+    return jsonify({
+        'success': True,
+        'synced': results,
+        'message': f"Synced {results['workmarket']} WorkMarket + {results['fieldnation']} Field Nation jobs."
+    })
+
 def detect_conflicts(company_id):
     jobs = Job.query.filter_by(company_id=company_id).order_by(Job.start_time).all()
     conflicts = []
     for i in range(len(jobs)):
         for j in range(i + 1, len(jobs)):
             a, b = jobs[i], jobs[j]
-            if a.start_time < b.end_time and b.start_time < a.end_time:
+            # Only flag conflict if same tech is double booked
+            same_tech = (
+                a.tech_assigned and b.tech_assigned and
+                a.tech_assigned.strip().lower() == b.tech_assigned.strip().lower()
+            )
+            if same_tech and a.start_time < b.end_time and b.start_time < a.end_time:
                 conflicts.append({
                     'job_a': a.title, 'job_b': b.title,
                     'job_a_id': a.id, 'job_b_id': b.id,
                     'start_a': a.start_time.isoformat(),
-                    'start_b': b.start_time.isoformat()
+                    'start_b': b.start_time.isoformat(),
+                    'tech': a.tech_assigned
                 })
     return conflicts
 

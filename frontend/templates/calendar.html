@@ -15,6 +15,12 @@
         header p { color: #a8c4e0; font-size: 12px; margin-top: 2px; }
         .add-btn { background: #fff; color: #1e3a5f; border: none; border-radius: 6px; padding: 9px 18px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
         .add-btn:hover { background: #e8edf4; }
+        .sync-btn { background: #1e3a5f; color: #fff; border: none; border-radius: 6px; padding: 9px 18px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .sync-btn:hover { background: #16304f; }
+        .sync-btn:disabled { background: #5a6a7e; cursor: not-allowed; }
+        .sync-toast { position: fixed; bottom: 24px; right: 24px; background: #1e3a5f; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 999; display: none; }
+        .sync-toast.show { display: block; }
+        .sync-toast.error { background: #dc2626; }
 
         nav { background: #fff; border-bottom: 1px solid #dde3ec; padding: 0 40px; display: flex; gap: 4px; }
         nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #5a6a7e; text-decoration: none; border-bottom: 2px solid transparent; }
@@ -85,7 +91,10 @@
         <h1>FieldBase</h1>
         <p>Unified Calendar</p>
     </div>
-    <button class="add-btn" onclick="document.getElementById('add-modal').classList.add('show')">+ Add Job</button>
+    <div style="display:flex;gap:10px;align-items:center;">
+        <button class="sync-btn" id="sync-btn" onclick="syncPlatforms()">⟳ Sync</button>
+        <button class="add-btn" onclick="document.getElementById('add-modal').classList.add('show')">+ Add Job</button>
+    </div>
 </header>
 
 <nav>
@@ -244,7 +253,15 @@
         const conflicts = await fetch('/api/conflicts').then(r => r.json());
         if (conflicts.length > 0) {
             document.getElementById('conflict-banner').classList.add('show');
-            document.getElementById('conflict-detail').textContent = `${conflicts[0].job_a} overlaps with ${conflicts[0].job_b}`;
+            const c = conflicts[0];
+        const techInfo = c.tech ? ` (${c.tech} is double-booked)` : '';
+        document.getElementById('conflict-detail').textContent = `${c.job_a} overlaps with ${c.job_b}${techInfo}`;
+        const banner = document.getElementById('conflict-banner');
+        banner.classList.add('show');
+        // Show all conflicts count if more than one
+        if (conflicts.length > 1) {
+            document.getElementById('conflict-detail').textContent += ` — and ${conflicts.length - 1} more conflict${conflicts.length > 2 ? 's' : ''}`;
+        };
         }
     }
 
@@ -267,5 +284,6 @@
         await loadConflicts();
     }
 </script>
+<div id="sync-toast" class="sync-toast"></div>
 </body>
 </html>
