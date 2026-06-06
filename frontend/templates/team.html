@@ -57,6 +57,18 @@
     .btn-toggle { border: 1px solid #d1d5db; background: #fff; color: #374151; padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
     .btn-toggle:hover { border-color: #1e3a5f; color: #1e3a5f; }
     .empty { text-align: center; padding: 40px; color: #9ca3af; font-size: 14px; background: #fff; border-radius: 8px; }
+
+    @media (max-width: 720px) {
+      header { padding: 14px 16px; }
+      nav { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+      nav a { padding: 12px 10px; font-size: 13px; white-space: nowrap; }
+      .container { padding: 0 12px; margin-top: 20px; }
+      .form-row { grid-template-columns: 1fr; }
+      .add-card { padding: 20px 16px; }
+      .employee-card { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .emp-right { width: 100%; justify-content: flex-start; }
+      .btn-add { width: 100%; }
+    }
   </style>
 </head>
 <body>

@@ -40,6 +40,17 @@
     .section-company { margin-bottom: 28px; }
     .section-company h3 { font-size: 15px; font-weight: 700; color: #1f2937; margin-bottom: 4px; }
     .section-company p { font-size: 14px; color: #6b7280; }
+
+    @media (max-width: 720px) {
+      nav { padding: 0 12px; gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; height: auto; min-height: 48px; }
+      nav .brand { font-size: 15px; white-space: nowrap; padding: 12px 10px 12px 0; }
+      nav a { padding: 12px 10px; font-size: 13px; white-space: nowrap; }
+      nav .right { gap: 10px; }
+      nav .right span { display: none; }
+      .container { padding: 0 12px; margin-top: 20px; }
+      .card { padding: 16px; }
+      button[type=submit] { width: 100%; }
+    }
   </style>
 </head>
 <body>

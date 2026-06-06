@@ -42,8 +42,18 @@
     .empty-row td { color: #9ca3af; font-style: italic; }
 
     @media (max-width: 720px) {
+      header { padding: 14px 16px; }
+      nav { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+      nav a { padding: 12px 10px; font-size: 13px; white-space: nowrap; }
+      .container { padding: 0 12px; margin-top: 20px; }
       .stats { grid-template-columns: 1fr 1fr; }
       .grid-2 { grid-template-columns: 1fr; }
+      .card { padding: 16px; overflow-x: auto; }
+      table { min-width: 280px; }
+    }
+    @media (max-width: 480px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat-card .value { font-size: 24px; }
     }
   </style>
 </head>

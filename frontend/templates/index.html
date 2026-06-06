@@ -94,7 +94,19 @@
             .stats { grid-template-columns: 1fr 1fr; }
             .actions { grid-template-columns: 1fr 1fr; }
             header { padding: 14px 16px; }
-            nav { padding: 0 16px; }
+            nav { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+            nav a { padding: 12px 10px; font-size: 13px; white-space: nowrap; }
+            .container { padding: 0 12px; }
+            .detail-grid { grid-template-columns: 1fr 1fr; }
+            .job-right { gap: 8px; }
+        }
+        @media (max-width: 480px) {
+            .stats { grid-template-columns: 1fr 1fr; }
+            .actions { grid-template-columns: 1fr 1fr; }
+            .detail-grid { grid-template-columns: 1fr; }
+            .payment-section { flex-direction: column; align-items: flex-start; }
+            header h1 { font-size: 17px; }
+            header .company { display: none; }
         }
     </style>
 </head>
