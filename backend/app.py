@@ -1158,6 +1158,7 @@ with app.app_context():
             ('hourly_rate',      'ALTER TABLE users ADD COLUMN hourly_rate FLOAT'),
             ('client_name',      'ALTER TABLE jobs ADD COLUMN client_name VARCHAR(200)'),
             ('client_email',     'ALTER TABLE jobs ADD COLUMN client_email VARCHAR(200)'),
+            ('external_job_id',  'ALTER TABLE jobs ADD COLUMN external_job_id VARCHAR(200)'),
         ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
         ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
         ]:
