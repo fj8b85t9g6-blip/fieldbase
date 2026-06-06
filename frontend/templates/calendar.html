@@ -205,10 +205,14 @@
     async function deleteJob() {
         if (!activeJobId) return;
         if (!confirm('Delete this job? This cannot be undone.')) return;
-        await fetch(`/api/jobs/${activeJobId}`, { method: 'DELETE' });
-        closeJobModal();
-        calendar.refetchEvents();
-        await loadConflicts();
+        const res = await fetch(`/api/jobs/${activeJobId}`, { method: 'DELETE' });
+        if (res.ok) {
+            closeJobModal();
+            calendar.refetchEvents();
+            await loadConflicts();
+        } else {
+            alert('Failed to delete job. Please try again.');
+        }
     }
 
     async function loadConflicts() {

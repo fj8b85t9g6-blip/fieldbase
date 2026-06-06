@@ -315,6 +315,9 @@ def add_job():
 @owner_required
 def delete_job(job_id):
     job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    Conflict.query.filter(
+        (Conflict.job_a_id == job_id) | (Conflict.job_b_id == job_id)
+    ).delete(synchronize_session=False)
     db.session.delete(job)
     db.session.commit()
     return jsonify({'success': True})
