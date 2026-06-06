@@ -69,10 +69,10 @@
     <a href="/job-brief">SOW</a>
     <a href="/invoice">Invoices</a>
     <a href="/team">Team</a>
-    <a href="/settings" class="active">Settings</a>
     <a href="/reports">Reports</a>
     <a href="/receipts">Receipts</a>
     <a href="/tech-standards">Standards</a>
+    <a href="/settings" class="active">Settings</a>
   </nav>
 
   <div class="container">
@@ -110,13 +110,13 @@
         </div>
         <div class="field">
           <label>API Key</label>
-          <input type="text" name="workmarket_key" placeholder="Paste your WorkMarket API key"
+          <input type="text" name="workmarket_key" placeholder="Paste your WorkMarket API key" autocomplete="off"
             value="{{ creds['workmarket'].api_key if 'workmarket' in creds and creds['workmarket'].api_key else '' }}">
           <div class="hint">Found in WorkMarket → Account Settings → API Access</div>
         </div>
         <div class="field">
           <label>API Secret</label>
-          <input type="password" name="workmarket_secret" placeholder="Paste your WorkMarket API secret"
+          <input type="password" name="workmarket_secret" placeholder="Paste your WorkMarket API secret" autocomplete="new-password"
             value="{{ creds['workmarket'].api_secret if 'workmarket' in creds and creds['workmarket'].api_secret else '' }}">
         </div>
         {% if 'workmarket' in creds and creds['workmarket'].api_key %}
@@ -141,13 +141,13 @@
         </div>
         <div class="field">
           <label>API Key</label>
-          <input type="text" name="fieldnation_key" placeholder="Paste your Field Nation API key"
+          <input type="text" name="fieldnation_key" placeholder="Paste your Field Nation API key" autocomplete="off"
             value="{{ creds['fieldnation'].api_key if 'fieldnation' in creds and creds['fieldnation'].api_key else '' }}">
           <div class="hint">Found in Field Nation → My Profile → API Settings</div>
         </div>
         <div class="field">
           <label>API Secret</label>
-          <input type="password" name="fieldnation_secret" placeholder="Paste your Field Nation API secret"
+          <input type="password" name="fieldnation_secret" placeholder="Paste your Field Nation API secret" autocomplete="new-password"
             value="{{ creds['fieldnation'].api_secret if 'fieldnation' in creds and creds['fieldnation'].api_secret else '' }}">
         </div>
         {% if 'fieldnation' in creds and creds['fieldnation'].api_key %}
