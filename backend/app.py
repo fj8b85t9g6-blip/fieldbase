@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from datetime import datetime
@@ -6,6 +6,10 @@ from functools import wraps
 from sqlalchemy import text
 import bcrypt
 import os
+import smtplib
+import uuid
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 _BASE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_BASE)
@@ -80,7 +84,19 @@ class Job(db.Model):
     payment_received  = db.Column(db.Boolean, default=False)
     amount_paid       = db.Column(db.Float)
     notes             = db.Column(db.Text)
+    client_name       = db.Column(db.String(200))
+    client_email      = db.Column(db.String(200))
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class JobPhoto(db.Model):
+    __tablename__ = 'job_photos'
+    id          = db.Column(db.Integer, primary_key=True)
+    job_id      = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False)
+    company_id  = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    filename    = db.Column(db.String(300), nullable=False)
+    uploaded_by = db.Column(db.String(200))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class Conflict(db.Model):
@@ -302,11 +318,41 @@ def add_job():
         tech_assigned = data.get('tech', ''),
         tech_pay      = data.get('tech_pay'),
         job_pay       = data.get('job_pay'),
-        notes         = data.get('notes', '')
+        notes         = data.get('notes', ''),
+        client_name   = data.get('client_name', ''),
+        client_email  = data.get('client_email', ''),
     )
     db.session.add(job)
     db.session.commit()
     detect_and_save_conflicts(current_user.company_id)
+
+    # Notify assigned employee by email
+    if job.tech_assigned:
+        emp = User.query.filter_by(
+            company_id=current_user.company_id,
+            name=job.tech_assigned,
+            role='employee'
+        ).first()
+        if emp:
+            html = f"""
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+              <div style="background:#1e3a5f;padding:24px 32px;">
+                <h1 style="color:#fff;margin:0;font-size:20px;">New Job Assigned</h1>
+                <p style="color:#a8c4e0;margin:4px 0 0;">{current_user.company.name}</p>
+              </div>
+              <div style="padding:32px;">
+                <p style="color:#374151;">Hi {emp.name}, you have been assigned a new job.</p>
+                <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+                  <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Job</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.title}</td></tr>
+                  <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Date</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.start_time.strftime('%A, %B %d at %I:%M %p')}</td></tr>
+                  <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Location</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.location or 'TBD'}</td></tr>
+                  {"<tr><td style='padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;'>Pay</td><td style='padding:10px 14px;font-size:14px;font-weight:700;color:#166534;'>$" + f"{job.tech_pay:.2f}" + "</td></tr>" if job.tech_pay else ""}
+                </table>
+                <p style="color:#374151;">Please log in to confirm this job.</p>
+              </div>
+            </div>"""
+            send_email(emp.email, f'New Job: {job.title}', html)
+
     return jsonify({'success': True, 'id': job.id})
 
 
@@ -492,6 +538,189 @@ def save_employee_notes(job_id):
     return jsonify({'success': True})
 
 # ─────────────────────────────────────────
+# EMAIL HELPER
+# ─────────────────────────────────────────
+
+def send_email(to_addr, subject, html_body):
+    mail_user = os.environ.get('MAIL_USER')
+    mail_pass = os.environ.get('MAIL_PASS')
+    mail_from = os.environ.get('MAIL_FROM', mail_user)
+    mail_host = os.environ.get('MAIL_HOST', 'smtp.gmail.com')
+    mail_port = int(os.environ.get('MAIL_PORT', 587))
+    if not mail_user or not mail_pass:
+        app.logger.warning(f'Email not configured — would have sent "{subject}" to {to_addr}')
+        return False
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = mail_from
+        msg['To']      = to_addr
+        msg.attach(MIMEText(html_body, 'html'))
+        with smtplib.SMTP(mail_host, mail_port) as s:
+            s.starttls()
+            s.login(mail_user, mail_pass)
+            s.sendmail(mail_from, to_addr, msg.as_string())
+        return True
+    except Exception as e:
+        app.logger.error(f'Email send failed: {e}')
+        return False
+
+
+# ─────────────────────────────────────────
+# PHOTO ROUTES
+# ─────────────────────────────────────────
+
+UPLOAD_FOLDER = os.path.join(_ROOT, 'frontend', 'static', 'uploads', 'photos')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXT
+
+@app.route('/api/jobs/<int:job_id>/photos', methods=['POST'])
+@login_required
+def upload_photo(job_id):
+    job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    if 'photo' not in request.files:
+        return jsonify({'error': 'No file'}), 400
+    f = request.files['photo']
+    if not f or not allowed_file(f.filename):
+        return jsonify({'error': 'Invalid file type'}), 400
+    ext      = f.filename.rsplit('.', 1)[1].lower()
+    filename = f'{uuid.uuid4().hex}.{ext}'
+    f.save(os.path.join(UPLOAD_FOLDER, filename))
+    photo = JobPhoto(job_id=job_id, company_id=current_user.company_id,
+                     filename=filename, uploaded_by=current_user.name)
+    db.session.add(photo)
+    db.session.commit()
+    return jsonify({'success': True, 'filename': filename, 'id': photo.id})
+
+
+@app.route('/api/jobs/<int:job_id>/photos', methods=['GET'])
+@login_required
+def get_photos(job_id):
+    Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    photos = JobPhoto.query.filter_by(job_id=job_id).order_by(JobPhoto.uploaded_at).all()
+    return jsonify([{
+        'id':          p.id,
+        'url':         f'/static/uploads/photos/{p.filename}',
+        'uploaded_by': p.uploaded_by,
+        'uploaded_at': p.uploaded_at.strftime('%b %d %I:%M %p')
+    } for p in photos])
+
+
+@app.route('/api/photos/<int:photo_id>', methods=['DELETE'])
+@login_required
+@owner_required
+def delete_photo(photo_id):
+    photo = JobPhoto.query.filter_by(id=photo_id, company_id=current_user.company_id).first_or_404()
+    try:
+        os.remove(os.path.join(UPLOAD_FOLDER, photo.filename))
+    except FileNotFoundError:
+        pass
+    db.session.delete(photo)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ─────────────────────────────────────────
+# INVOICE EMAIL ROUTE
+# ─────────────────────────────────────────
+
+@app.route('/api/jobs/<int:job_id>/email-invoice', methods=['POST'])
+@login_required
+@owner_required
+def email_invoice(job_id):
+    job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    data         = request.json or {}
+    client_email = data.get('client_email') or job.client_email
+    client_name  = data.get('client_name')  or job.client_name or 'Client'
+    if not client_email:
+        return jsonify({'error': 'No client email provided'}), 400
+    if data.get('client_email'):
+        job.client_email = client_email
+    if data.get('client_name'):
+        job.client_name = client_name
+    job.invoice_sent    = True
+    job.invoice_sent_at = datetime.utcnow()
+    db.session.commit()
+
+    amount = f"${job.job_pay:.2f}" if job.job_pay else 'See attached'
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+      <div style="background:#1e3a5f;padding:24px 32px;">
+        <h1 style="color:#fff;margin:0;font-size:22px;">{current_user.company.name}</h1>
+        <p style="color:#a8c4e0;margin:4px 0 0;font-size:13px;">Invoice</p>
+      </div>
+      <div style="padding:32px;">
+        <p style="color:#374151;">Dear {client_name},</p>
+        <p style="color:#374151;">Please find your invoice details below for the recently completed work.</p>
+        <table style="width:100%;border-collapse:collapse;margin:24px 0;">
+          <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Job</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.title}</td></tr>
+          <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Date</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.start_time.strftime('%B %d, %Y')}</td></tr>
+          <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Location</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.location or 'N/A'}</td></tr>
+          <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Amount Due</td><td style="padding:10px 14px;font-size:18px;font-weight:700;color:#1e3a5f;">{amount}</td></tr>
+        </table>
+        <p style="color:#6b7280;font-size:13px;">Please remit payment at your earliest convenience. Thank you for your business.</p>
+        <p style="color:#374151;margin-top:24px;">— {current_user.name}<br>{current_user.company.name}</p>
+      </div>
+    </div>"""
+    ok = send_email(client_email, f'Invoice — {job.title}', html)
+    return jsonify({'success': ok, 'sent_to': client_email})
+
+
+# ─────────────────────────────────────────
+# REPORTS ROUTE
+# ─────────────────────────────────────────
+
+@app.route('/reports')
+@login_required
+@owner_required
+def reports():
+    from sqlalchemy import func, extract
+    jobs = Job.query.filter_by(company_id=current_user.company_id).all()
+
+    total_revenue   = sum(j.amount_paid or 0 for j in jobs if j.payment_received)
+    total_jobs      = len(jobs)
+    completed_jobs  = [j for j in jobs if j.status == 'complete']
+    outstanding     = [j for j in jobs if j.status == 'complete' and not j.payment_received]
+    outstanding_amt = sum(j.job_pay or 0 for j in outstanding)
+    avg_value       = (sum(j.job_pay or 0 for j in jobs if j.job_pay) / max(1, len([j for j in jobs if j.job_pay])))
+
+    # Platform breakdown
+    platform_counts = {}
+    for j in jobs:
+        platform_counts[j.platform] = platform_counts.get(j.platform, 0) + 1
+
+    # Monthly revenue (last 6 months)
+    from datetime import timedelta
+    monthly = {}
+    for j in jobs:
+        if j.payment_received and j.amount_paid:
+            key = j.start_time.strftime('%b %Y')
+            monthly[key] = monthly.get(key, 0) + j.amount_paid
+
+    # Employee job counts
+    emp_counts = {}
+    for j in completed_jobs:
+        if j.tech_assigned:
+            emp_counts[j.tech_assigned] = emp_counts.get(j.tech_assigned, 0) + 1
+
+    return render_template('reports.html',
+        company=current_user.company,
+        total_revenue=total_revenue,
+        total_jobs=total_jobs,
+        completed_jobs=len(completed_jobs),
+        outstanding_amt=outstanding_amt,
+        outstanding_count=len(outstanding),
+        avg_value=avg_value,
+        platform_counts=platform_counts,
+        monthly=monthly,
+        emp_counts=emp_counts,
+    )
+
+
+# ─────────────────────────────────────────
 # SETTINGS ROUTES
 # ─────────────────────────────────────────
 
@@ -576,6 +805,8 @@ with app.app_context():
             ('payment_received', 'ALTER TABLE jobs ADD COLUMN payment_received BOOLEAN DEFAULT FALSE'),
             ('amount_paid',      'ALTER TABLE jobs ADD COLUMN amount_paid FLOAT'),
             ('hourly_rate',      'ALTER TABLE users ADD COLUMN hourly_rate FLOAT'),
+            ('client_name',      'ALTER TABLE jobs ADD COLUMN client_name VARCHAR(200)'),
+            ('client_email',     'ALTER TABLE jobs ADD COLUMN client_email VARCHAR(200)'),
         ]:
             try:
                 conn.execute(text(ddl))

@@ -182,6 +182,17 @@
           {% endif %}
         </div>
 
+        <div class="notes-section" style="border-top:1px solid #f3f4f6;padding:14px 20px;">
+          <label>Photos</label>
+          <div id="emp-photo-grid-{{ job.id }}" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;"></div>
+          <button onclick="document.getElementById('emp-photo-{{ job.id }}').click()"
+            style="font-size:12px;color:#1e3a5f;font-weight:600;background:none;border:1.5px dashed #d1d5db;border-radius:6px;padding:6px 14px;cursor:pointer;">
+            + Add Photo
+          </button>
+          <input type="file" id="emp-photo-{{ job.id }}" accept="image/*" style="display:none"
+            onchange="empUploadPhoto({{ job.id }}, this)">
+        </div>
+
         <div class="notes-section">
           <label>Your Notes</label>
           {% if job.employee_notes %}
@@ -234,6 +245,34 @@
         cal.render();
       }
     }
+
+    async function empUploadPhoto(jobId, input) {
+        const file = input.files[0];
+        if (!file) return;
+        const form = new FormData();
+        form.append('photo', file);
+        const res  = await fetch(`/api/jobs/${jobId}/photos`, { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.success) empLoadPhotos(jobId);
+        input.value = '';
+    }
+
+    async function empLoadPhotos(jobId) {
+        const res    = await fetch(`/api/jobs/${jobId}/photos`);
+        const photos = await res.json();
+        const grid   = document.getElementById(`emp-photo-grid-${jobId}`);
+        if (!grid) return;
+        grid.innerHTML = photos.map(p =>
+            `<a href="${p.url}" target="_blank"><img src="${p.url}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;"></a>`
+        ).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('[id^="emp-photo-grid-"]').forEach(el => {
+            const jobId = el.id.replace('emp-photo-grid-', '');
+            empLoadPhotos(jobId);
+        });
+    });
 
     function showToast(msg) {
       const t = document.getElementById('toast');

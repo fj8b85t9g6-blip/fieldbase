@@ -83,6 +83,7 @@
     <a href="/invoice">Invoices</a>
     <a href="/team">Team</a>
     <a href="/settings">Settings</a>
+    <a href="/reports">Reports</a>
 </nav>
 
 <div id="conflict-banner" class="conflict-banner">
@@ -148,6 +149,16 @@
             <div class="form-group">
                 <label>End</label>
                 <input id="job-end" type="datetime-local">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Client Name</label>
+                <input id="job-client-name" type="text" placeholder="Client name">
+            </div>
+            <div class="form-group">
+                <label>Client Email</label>
+                <input id="job-client-email" type="email" placeholder="client@email.com">
             </div>
         </div>
         <div class="form-group">
@@ -225,13 +236,15 @@
 
     async function addJob() {
         const data = {
-            title:    document.getElementById('job-title').value,
-            platform: document.getElementById('job-platform').value,
-            location: document.getElementById('job-location').value,
-            tech:     document.getElementById('job-tech').value,
-            start:    document.getElementById('job-start').value,
-            end:      document.getElementById('job-end').value,
-            notes:    document.getElementById('job-notes').value
+            title:        document.getElementById('job-title').value,
+            platform:     document.getElementById('job-platform').value,
+            location:     document.getElementById('job-location').value,
+            tech:         document.getElementById('job-tech').value,
+            start:        document.getElementById('job-start').value,
+            end:          document.getElementById('job-end').value,
+            notes:        document.getElementById('job-notes').value,
+            client_name:  document.getElementById('job-client-name').value,
+            client_email: document.getElementById('job-client-email').value,
         };
         if (!data.title || !data.start || !data.end) { alert('Title, start, and end are required.'); return; }
         await fetch('/api/jobs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });

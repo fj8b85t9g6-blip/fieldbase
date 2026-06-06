@@ -116,6 +116,7 @@
     <a href="/invoice">Invoices</a>
     <a href="/team">Team</a>
     <a href="/settings">Settings</a>
+    <a href="/reports">Reports</a>
 </nav>
 
 <div class="container">
@@ -243,6 +244,27 @@
                     </div>
                     {% endif %}
 
+                    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <button onclick="emailInvoice({{ job.id }}, '{{ job.client_email or '' }}', '{{ job.client_name or '' }}')"
+                          style="background:#1e3a5f;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+                          📧 Email Invoice
+                        </button>
+                        {% if job.invoice_sent %}
+                          <span style="font-size:12px;color:#16a34a;font-weight:600;">✓ Sent {{ job.invoice_sent_at.strftime('%b %d') if job.invoice_sent_at else '' }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div style="margin-top:14px;" id="photos-{{ job.id }}">
+                      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:#9ca3af;margin-bottom:8px;">Photos</div>
+                      <div id="photo-grid-{{ job.id }}" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
+                      <button onclick="document.getElementById('photo-input-{{ job.id }}').click()"
+                        style="font-size:12px;color:#1e3a5f;font-weight:600;background:none;border:1.5px dashed #d1d5db;border-radius:6px;padding:6px 14px;cursor:pointer;">
+                        + Add Photo
+                      </button>
+                      <input type="file" id="photo-input-{{ job.id }}" accept="image/*" style="display:none"
+                        onchange="uploadPhoto({{ job.id }}, this)">
+                    </div>
+
                     <div class="payment-section">
                         <label>
                             <input type="checkbox" id="pay-check-{{ job.id }}"
@@ -277,11 +299,64 @@
     setInterval(updateClock, 1000);
     updateClock();
 
+    async function emailInvoice(jobId, existingEmail, existingName) {
+        const email = prompt('Client email address:', existingEmail);
+        if (!email) return;
+        const name = prompt('Client name:', existingName || 'Client');
+        const res = await fetch(`/api/jobs/${jobId}/email-invoice`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_email: email, client_name: name })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`Invoice emailed to ${data.sent_to}`);
+            location.reload();
+        } else if (data.error) {
+            alert(data.error);
+        } else {
+            alert('Email not configured — add MAIL_USER and MAIL_PASS to your Railway environment variables.');
+        }
+    }
+
+    async function uploadPhoto(jobId, input) {
+        const file = input.files[0];
+        if (!file) return;
+        const form = new FormData();
+        form.append('photo', file);
+        const res  = await fetch(`/api/jobs/${jobId}/photos`, { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.success) loadPhotos(jobId);
+        input.value = '';
+    }
+
+    async function loadPhotos(jobId) {
+        const res    = await fetch(`/api/jobs/${jobId}/photos`);
+        const photos = await res.json();
+        const grid   = document.getElementById(`photo-grid-${jobId}`);
+        if (!grid) return;
+        grid.innerHTML = photos.map(p => `
+            <div style="position:relative;">
+                <a href="${p.url}" target="_blank">
+                    <img src="${p.url}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;">
+                </a>
+                <button onclick="deletePhoto(${p.id}, ${jobId})"
+                    style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1;">✕</button>
+            </div>`).join('');
+    }
+
+    async function deletePhoto(photoId, jobId) {
+        if (!confirm('Remove this photo?')) return;
+        await fetch(`/api/photos/${photoId}`, { method: 'DELETE' });
+        loadPhotos(jobId);
+    }
+
     function toggleDetail(id) {
         const detail = document.getElementById(`detail-${id}`);
         const chev   = document.getElementById(`chev-${id}`);
         const open   = detail.classList.toggle('open');
         chev.classList.toggle('open', open);
+        if (open) loadPhotos(id);
     }
 
     function togglePayField(id) {

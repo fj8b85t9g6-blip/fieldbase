@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FieldBase — Reports</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+    header { background: #1e3a5f; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 20px; color: #fff; font-weight: 700; }
+    header .meta { display: flex; align-items: center; gap: 20px; }
+    header .company { color: #94a3b8; font-size: 13px; }
+    header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+    header a:hover { color: #fff; }
+    nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 32px; display: flex; gap: 4px; }
+    nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    nav a:hover { color: #1e3a5f; }
+    nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
+    .container { max-width: 1000px; margin: 28px auto; padding: 0 24px; }
+    .page-title { font-size: 22px; font-weight: 700; color: #1e3a5f; margin-bottom: 24px; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); border-top: 3px solid transparent; }
+    .stat-card.green  { border-top-color: #22c55e; } .stat-card.green .value  { color: #16a34a; }
+    .stat-card.blue   { border-top-color: #3b82f6; } .stat-card.blue .value   { color: #2563eb; }
+    .stat-card.orange { border-top-color: #f59e0b; } .stat-card.orange .value { color: #d97706; }
+    .stat-card.red    { border-top-color: #ef4444; } .stat-card.red .value    { color: #dc2626; }
+    .stat-card .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6b7280; margin-bottom: 8px; }
+    .stat-card .value { font-size: 30px; font-weight: 700; color: #1e3a5f; line-height: 1; }
+    .stat-card .sub   { font-size: 12px; color: #9ca3af; margin-top: 5px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .card { background: #fff; border-radius: 10px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    .card h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #9ca3af; padding: 8px 12px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+    td { font-size: 14px; color: #374151; padding: 10px 12px; border-bottom: 1px solid #f9fafb; }
+    tr:last-child td { border-bottom: none; }
+    .amount { font-weight: 600; color: #166534; }
+    .empty-row td { color: #9ca3af; font-style: italic; }
+
+    @media (max-width: 720px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>FieldBase</h1>
+  <div class="meta">
+    <span class="company">{{ company.name }}</span>
+    <a href="/logout">Sign Out</a>
+  </div>
+</header>
+<nav>
+  <a href="/">Dashboard</a>
+  <a href="/calendar">Calendar</a>
+  <a href="/job-brief">SOW</a>
+  <a href="/invoice">Invoices</a>
+  <a href="/team">Team</a>
+  <a href="/settings">Settings</a>
+  <a href="/reports" class="active">Reports</a>
+</nav>
+
+<div class="container">
+  <div class="page-title">Reports</div>
+
+  <div class="stats">
+    <div class="stat-card green">
+      <div class="label">Total Revenue</div>
+      <div class="value">${{ '%.0f'|format(total_revenue) }}</div>
+      <div class="sub">Payments received</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="label">Jobs Completed</div>
+      <div class="value">{{ completed_jobs }}</div>
+      <div class="sub">of {{ total_jobs }} total</div>
+    </div>
+    <div class="stat-card orange">
+      <div class="label">Avg Job Value</div>
+      <div class="value">${{ '%.0f'|format(avg_value) }}</div>
+      <div class="sub">Per job</div>
+    </div>
+    <div class="stat-card red">
+      <div class="label">Outstanding</div>
+      <div class="value">${{ '%.0f'|format(outstanding_amt) }}</div>
+      <div class="sub">{{ outstanding_count }} unpaid job{{ 's' if outstanding_count != 1 else '' }}</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2>Revenue by Month</h2>
+      <table>
+        <thead><tr><th>Month</th><th>Revenue</th></tr></thead>
+        <tbody>
+          {% if monthly %}
+            {% for month, amount in monthly.items()|sort %}
+            <tr>
+              <td>{{ month }}</td>
+              <td class="amount">${{ '%.2f'|format(amount) }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="empty-row"><td colspan="2">No payments recorded yet</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Jobs by Platform</h2>
+      <table>
+        <thead><tr><th>Platform</th><th>Jobs</th></tr></thead>
+        <tbody>
+          {% if platform_counts %}
+            {% for platform, count in platform_counts.items()|sort(attribute='1', reverse=True) %}
+            <tr>
+              <td>{{ platform | capitalize }}</td>
+              <td>{{ count }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="empty-row"><td colspan="2">No jobs yet</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Employee Performance</h2>
+    <table>
+      <thead><tr><th>Employee</th><th>Completed Jobs</th></tr></thead>
+      <tbody>
+        {% if emp_counts %}
+          {% for name, count in emp_counts.items()|sort(attribute='1', reverse=True) %}
+          <tr>
+            <td>{{ name }}</td>
+            <td>{{ count }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr class="empty-row"><td colspan="2">No completed jobs yet</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>
