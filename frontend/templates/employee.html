@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FieldBase — My Jobs</title>
+  <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1f2937; }
@@ -87,14 +89,28 @@
     <div class="brand">FieldBase</div>
     <div class="user">
       <span>{{ current_user.name }}</span>
+      {% if current_user.hourly_rate %}
+        <span style="background:#f0fdf4;color:#166534;font-size:12px;font-weight:700;padding:3px 10px;border-radius:10px;">${{ '%.2f'|format(current_user.hourly_rate) }}/hr</span>
+      {% endif %}
       <a href="/logout">Sign Out</a>
     </div>
   </nav>
 
   <div class="container">
-    <h2>My Jobs</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <h2>My Jobs</h2>
+      <div style="display:flex;gap:6px;">
+        <button id="btn-list" onclick="showView('list')" style="padding:6px 16px;border-radius:6px;border:1.5px solid #1e3a5f;background:#1e3a5f;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">List</button>
+        <button id="btn-cal" onclick="showView('cal')" style="padding:6px 16px;border-radius:6px;border:1.5px solid #d1d5db;background:#fff;color:#374151;font-size:13px;font-weight:600;cursor:pointer;">Calendar</button>
+      </div>
+    </div>
     <p class="subtitle">{{ jobs|length }} job{{ 's' if jobs|length != 1 else '' }} assigned to you</p>
 
+    <div id="cal-view" style="display:none;background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08);margin-bottom:20px;">
+      <div id="emp-calendar"></div>
+    </div>
+
+    <div id="list-view">
     {% if jobs %}
       {% for job in jobs %}
       <div class="job-card {{ 'in_progress' if job.status == 'in_progress' else ('complete' if job.status == 'complete' else ('confirmed' if job.tech_confirmed else 'unconfirmed')) }}" id="card-{{ job.id }}">
@@ -185,11 +201,40 @@
         <p>No jobs assigned to you yet.</p>
       </div>
     {% endif %}
+    </div><!-- end list-view -->
   </div>
 
   <div class="toast" id="toast"></div>
 
   <script>
+    let calInit = false;
+    function showView(view) {
+      const isCal = view === 'cal';
+      document.getElementById('cal-view').style.display  = isCal ? 'block' : 'none';
+      document.getElementById('list-view').style.display = isCal ? 'none'  : 'block';
+      document.getElementById('btn-cal').style.background  = isCal ? '#1e3a5f' : '#fff';
+      document.getElementById('btn-cal').style.color       = isCal ? '#fff' : '#374151';
+      document.getElementById('btn-cal').style.borderColor = isCal ? '#1e3a5f' : '#d1d5db';
+      document.getElementById('btn-list').style.background  = isCal ? '#fff' : '#1e3a5f';
+      document.getElementById('btn-list').style.color       = isCal ? '#374151' : '#fff';
+      document.getElementById('btn-list').style.borderColor = isCal ? '#d1d5db' : '#1e3a5f';
+      if (isCal && !calInit) {
+        calInit = true;
+        const cal = new FullCalendar.Calendar(document.getElementById('emp-calendar'), {
+          initialView: 'dayGridMonth',
+          headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
+          events: '/api/employee/jobs',
+          height: 'auto',
+          eventClick: function(info) {
+            const p = info.event.extendedProps;
+            const pay = p.pay ? `$${parseFloat(p.pay).toFixed(2)}` : 'Not set';
+            alert(`${info.event.title}\nStatus: ${p.status}\nLocation: ${p.location || 'N/A'}\nPay: ${pay}`);
+          }
+        });
+        cal.render();
+      }
+    }
+
     function showToast(msg) {
       const t = document.getElementById('toast');
       t.textContent = msg;

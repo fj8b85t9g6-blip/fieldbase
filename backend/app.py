@@ -53,6 +53,7 @@ class User(UserMixin, db.Model):
     role          = db.Column(db.String(20), nullable=False, default='employee')  # owner or employee
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
     is_active     = db.Column(db.Boolean, default=True)
+    hourly_rate   = db.Column(db.Float)
 
 
 class Job(db.Model):
@@ -347,9 +348,10 @@ def update_payment(job_id):
 @owner_required
 def team():
     if request.method == 'POST':
-        name     = request.form.get('name', '').strip()
-        email    = request.form.get('email', '').strip().lower()
-        password = request.form.get('password', '')
+        name        = request.form.get('name', '').strip()
+        email       = request.form.get('email', '').strip().lower()
+        password    = request.form.get('password', '')
+        hourly_rate = request.form.get('hourly_rate', '').strip()
 
         if not all([name, email, password]):
             flash('All fields are required.')
@@ -365,7 +367,8 @@ def team():
             email         = email,
             name          = name,
             password_hash = pw_hash,
-            role          = 'employee'
+            role          = 'employee',
+            hourly_rate   = float(hourly_rate) if hourly_rate else None
         )
         db.session.add(employee)
         db.session.commit()
@@ -387,6 +390,39 @@ def deactivate_employee(user_id):
     employee.is_active = not employee.is_active
     db.session.commit()
     return jsonify({'success': True, 'active': employee.is_active})
+
+
+@app.route('/team/<int:user_id>/hourly-rate', methods=['POST'])
+@login_required
+@owner_required
+def update_hourly_rate(user_id):
+    employee = User.query.filter_by(id=user_id, company_id=current_user.company_id, role='employee').first_or_404()
+    rate = request.json.get('hourly_rate')
+    employee.hourly_rate = float(rate) if rate else None
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/employee/jobs')
+@login_required
+def employee_jobs_api():
+    jobs = Job.query.filter_by(
+        company_id=current_user.company_id,
+        tech_assigned=current_user.name
+    ).all()
+    color_map = {'scheduled': '#f59e0b', 'confirmed': '#3b82f6', 'in_progress': '#8b5cf6', 'complete': '#22c55e'}
+    return jsonify([{
+        'id':    j.id,
+        'title': j.title,
+        'start': j.start_time.isoformat(),
+        'end':   j.end_time.isoformat(),
+        'color': color_map.get(j.status, '#6b7280'),
+        'extendedProps': {
+            'location': j.location,
+            'pay':      j.tech_pay,
+            'status':   j.status,
+        }
+    } for j in jobs])
 
 
 # ─────────────────────────────────────────
@@ -526,6 +562,7 @@ with app.app_context():
         for col, ddl in [
             ('payment_received', 'ALTER TABLE jobs ADD COLUMN payment_received BOOLEAN DEFAULT FALSE'),
             ('amount_paid',      'ALTER TABLE jobs ADD COLUMN amount_paid FLOAT'),
+            ('hourly_rate',      'ALTER TABLE users ADD COLUMN hourly_rate FLOAT'),
         ]:
             try:
                 conn.execute(text(ddl))
