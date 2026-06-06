@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FieldBase — Tech Standards</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+  header { background: #1e3a5f; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 20px; color: #fff; font-weight: 700; }
+  header .meta { display: flex; align-items: center; gap: 20px; }
+  header .company { color: #94a3b8; font-size: 13px; }
+  header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+  header a:hover { color: #fff; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 32px; display: flex; gap: 4px; overflow-x: auto; }
+  nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+  nav a:hover { color: #1e3a5f; }
+  nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
+  .container { max-width: 900px; margin: 28px auto; padding: 0 24px; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .page-title { font-size: 22px; font-weight: 700; color: #1e3a5f; }
+  .page-sub { font-size: 14px; color: #6b7280; margin-top: 4px; }
+  .btn-row { display: flex; gap: 10px; }
+
+  .card { background: #fff; border-radius: 10px; padding: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); margin-bottom: 20px; }
+  .card h2 { font-size: 15px; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .card .sub { font-size: 13px; color: #6b7280; margin-bottom: 14px; }
+  textarea { width: 100%; background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 8px; padding: 12px 14px; color: #1a1a2e; font-size: 14px; font-family: inherit; outline: none; transition: border 0.2s; resize: vertical; min-height: 100px; line-height: 1.6; }
+  textarea:focus { border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.08); background: #fff; }
+
+  .btn { background: #1e3a5f; color: #fff; border: none; border-radius: 6px; padding: 11px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  .btn:hover { background: #16304f; }
+  .btn-secondary { background: #fff; color: #1e3a5f; border: 1.5px solid #1e3a5f; }
+  .btn-secondary:hover { background: #f0f4f9; }
+
+  .flash { padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-weight: 500; }
+  .flash.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+  .preview-card { background: #1e3a5f; color: #fff; border-radius: 10px; padding: 28px; margin-bottom: 20px; }
+  .preview-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 12px; }
+  .preview-section { margin-bottom: 18px; }
+  .preview-section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 6px; }
+  .preview-section p { font-size: 14px; color: #e2e8f0; line-height: 1.7; white-space: pre-wrap; }
+
+  .last-updated { font-size: 12px; color: #9ca3af; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FieldBase</h1>
+  <div class="meta">
+    <span class="company">{{ current_user.company.name }}</span>
+    <a href="/logout">Sign out</a>
+  </div>
+</header>
+<nav>
+  <a href="/">Dashboard</a>
+  <a href="/calendar">Calendar</a>
+  <a href="/job-brief">Job Brief</a>
+  <a href="/invoice">Invoices</a>
+  <a href="/receipts">Receipts</a>
+  <a href="/tech-standards" class="active">Standards</a>
+  <a href="/reports">Reports</a>
+  <a href="/team">Team</a>
+  <a href="/settings">Settings</a>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Tech Standards Card</div>
+      <div class="page-sub">The rules every tech on your team follows. Every job. No exceptions.</div>
+    </div>
+    <div class="btn-row">
+      <a href="/api/tech-standards/pdf" class="btn btn-secondary">Export</a>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <!-- Live Preview -->
+  <div class="preview-card" id="livePreview">
+    <h2>{{ current_user.company.name }} — Standards Card</h2>
+    <div class="preview-section">
+      <h3>Dress Code</h3>
+      <p id="prev_dress">{{ std.dress_code }}</p>
+    </div>
+    <div class="preview-section">
+      <h3>ETA Rules</h3>
+      <p id="prev_eta">{{ std.eta_rules }}</p>
+    </div>
+    <div class="preview-section">
+      <h3>Deliverables</h3>
+      <p id="prev_deliver">{{ std.deliverables }}</p>
+    </div>
+    <div class="preview-section">
+      <h3>Safety Rules</h3>
+      <p id="prev_safety">{{ std.safety_rules }}</p>
+    </div>
+  </div>
+
+  <!-- Edit Form -->
+  <form method="POST">
+    <div class="card">
+      <h2>👔 Dress Code</h2>
+      <div class="sub">What techs must wear on every job site.</div>
+      <textarea name="dress_code" id="inp_dress" oninput="document.getElementById('prev_dress').textContent=this.value">{{ std.dress_code }}</textarea>
+    </div>
+
+    <div class="card">
+      <h2>⏱ ETA Rules</h2>
+      <div class="sub">Arrival expectations and communication requirements.</div>
+      <textarea name="eta_rules" id="inp_eta" oninput="document.getElementById('prev_eta').textContent=this.value">{{ std.eta_rules }}</textarea>
+    </div>
+
+    <div class="card">
+      <h2>✅ Deliverables</h2>
+      <div class="sub">What must be completed before a job is closed out.</div>
+      <textarea name="deliverables" id="inp_deliver" oninput="document.getElementById('prev_deliver').textContent=this.value">{{ std.deliverables }}</textarea>
+    </div>
+
+    <div class="card">
+      <h2>🦺 Safety Rules</h2>
+      <div class="sub">Non-negotiable safety requirements on every job.</div>
+      <textarea name="safety_rules" id="inp_safety" oninput="document.getElementById('prev_safety').textContent=this.value">{{ std.safety_rules }}</textarea>
+    </div>
+
+    <div style="display:flex; gap:12px; margin-bottom:40px;">
+      <button type="submit" class="btn">Save Standards</button>
+      <a href="/api/tech-standards/pdf" class="btn btn-secondary">Export as File</a>
+    </div>
+  </form>
+
+  <p class="last-updated">Last updated: {{ std.updated_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FieldBase — Receipt Logger</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+  header { background: #1e3a5f; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 20px; color: #fff; font-weight: 700; }
+  header .meta { display: flex; align-items: center; gap: 20px; }
+  header .company { color: #94a3b8; font-size: 13px; }
+  header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+  header a:hover { color: #fff; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 32px; display: flex; gap: 4px; overflow-x: auto; }
+  nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+  nav a:hover { color: #1e3a5f; }
+  nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
+  .container { max-width: 1000px; margin: 28px auto; padding: 0 24px; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .page-title { font-size: 22px; font-weight: 700; color: #1e3a5f; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); border-top: 3px solid #1e3a5f; }
+  .stat-card .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6b7280; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; color: #1e3a5f; }
+
+  .card { background: #fff; border-radius: 10px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); margin-bottom: 20px; }
+  .card h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6; }
+
+  .upload-zone { border: 2px dashed #d1d5db; border-radius: 10px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; background: #f9fafb; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: #1e3a5f; background: #f0f4f9; }
+  .upload-zone p { color: #6b7280; font-size: 14px; margin-top: 8px; }
+  .upload-zone input[type=file] { display: none; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; color: #5a6a7e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  input, select, textarea { background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 6px; padding: 9px 13px; color: #1a1a2e; font-size: 14px; font-family: inherit; outline: none; transition: border 0.2s; }
+  input:focus, select:focus { border-color: #1e3a5f; }
+
+  .btn { background: #1e3a5f; color: #fff; border: none; border-radius: 6px; padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  .btn:hover { background: #16304f; }
+  .btn-sm { padding: 6px 14px; font-size: 12px; }
+  .btn-danger { background: #fff; color: #dc2626; border: 1.5px solid #dc2626; }
+  .btn-danger:hover { background: #fef2f2; }
+
+  .preview-img { max-width: 120px; max-height: 80px; border-radius: 6px; object-fit: cover; border: 1px solid #e5e7eb; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #9ca3af; padding: 8px 12px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+  td { font-size: 14px; color: #374151; padding: 12px; border-bottom: 1px solid #f9fafb; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-parts     { background: #dbeafe; color: #1d4ed8; }
+  .badge-tools     { background: #fef9c3; color: #854d0e; }
+  .badge-travel    { background: #d1fae5; color: #065f46; }
+  .badge-fuel      { background: #ffedd5; color: #c2410c; }
+  .badge-food      { background: #fce7f3; color: #9d174d; }
+  .badge-supplies  { background: #ede9fe; color: #5b21b6; }
+  .badge-subcontractor { background: #f1f5f9; color: #334155; }
+  .badge-other     { background: #f3f4f6; color: #6b7280; }
+  .amount-cell { font-weight: 700; color: #166534; }
+  .empty { text-align: center; padding: 40px; color: #9ca3af; font-style: italic; }
+
+  .category-breakdown { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .cat-item { background: #f9fafb; border-radius: 8px; padding: 14px; border: 1px solid #e5e7eb; }
+  .cat-item .cat-name { font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; }
+  .cat-item .cat-amount { font-size: 20px; font-weight: 700; color: #1e3a5f; margin-top: 4px; }
+
+  #uploadPreview { display: none; margin-top: 12px; }
+  #uploadPreview img { max-width: 200px; max-height: 140px; border-radius: 8px; border: 1px solid #e5e7eb; }
+
+  @media (max-width: 720px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>FieldBase</h1>
+  <div class="meta">
+    <span class="company">{{ current_user.company.name }}</span>
+    <a href="/logout">Sign out</a>
+  </div>
+</header>
+<nav>
+  <a href="/">Dashboard</a>
+  <a href="/calendar">Calendar</a>
+  <a href="/job-brief">Job Brief</a>
+  <a href="/invoice">Invoices</a>
+  <a href="/receipts" class="active">Receipts</a>
+  <a href="/tech-standards">Standards</a>
+  <a href="/reports">Reports</a>
+  <a href="/team">Team</a>
+  <a href="/settings">Settings</a>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <div class="page-title">Receipt Logger</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="label">Total Receipts</div>
+      <div class="value">{{ receipts|length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Expenses</div>
+      <div class="value">${{ "%.2f"|format(total) }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Categories</div>
+      <div class="value">{{ by_category|length }}</div>
+    </div>
+  </div>
+
+  <!-- Upload Form -->
+  <div class="card">
+    <h2>Upload Receipt</h2>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+      <div style="font-size:32px;">📎</div>
+      <p><strong>Click to upload</strong> or drag and drop</p>
+      <p style="font-size:12px;margin-top:4px;">JPG, PNG, PDF, HEIC supported</p>
+      <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.gif,.pdf,.heic" onchange="previewFile(this)">
+    </div>
+    <div id="uploadPreview"><img id="previewImg" src="" alt="preview"></div>
+    <div class="form-grid" id="uploadForm" style="display:none;">
+      <div class="form-group">
+        <label>Category</label>
+        <select id="catSelect">
+          {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Amount ($)</label>
+        <input type="number" id="amountInput" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <div class="form-group">
+        <label>Vendor</label>
+        <input type="text" id="vendorInput" placeholder="Home Depot, Amazon...">
+      </div>
+      <div class="form-group">
+        <label>Link to Job (optional)</label>
+        <select id="jobSelect">
+          <option value="">— No job —</option>
+          {% for j in jobs %}<option value="{{ j.id }}">{{ j.title }} ({{ j.start_time.strftime('%m/%d') }})</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Description</label>
+        <input type="text" id="descInput" placeholder="What was this for?">
+      </div>
+      <div class="form-group full">
+        <button class="btn" onclick="submitReceipt()">Save Receipt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Breakdown -->
+  {% if by_category %}
+  <div class="card">
+    <h2>By Category</h2>
+    <div class="category-breakdown">
+      {% for cat, amt in by_category.items() %}
+      <div class="cat-item">
+        <div class="cat-name">{{ cat }}</div>
+        <div class="cat-amount">${{ "%.2f"|format(amt) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Receipt Table -->
+  <div class="card">
+    <h2>All Receipts</h2>
+    {% if receipts %}
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Category</th>
+          <th>Vendor</th>
+          <th>Amount</th>
+          <th>Description</th>
+          <th>Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in receipts %}
+        <tr id="receipt-{{ r.id }}">
+          <td>
+            {% if r.filename.lower().endswith(('.jpg','.jpeg','.png','.gif')) %}
+              <a href="/uploads/receipts/{{ r.filename }}" target="_blank">
+                <img class="preview-img" src="/uploads/receipts/{{ r.filename }}" alt="receipt">
+              </a>
+            {% else %}
+              <a href="/uploads/receipts/{{ r.filename }}" target="_blank" style="color:#1e3a5f;font-size:13px;">📄 View</a>
+            {% endif %}
+          </td>
+          <td><span class="badge badge-{{ r.category|lower|replace(' ','') }}">{{ r.category }}</span></td>
+          <td>{{ r.vendor or '—' }}</td>
+          <td class="amount-cell">${{ "%.2f"|format(r.amount or 0) }}</td>
+          <td style="font-size:13px;color:#6b7280;">{{ r.description or '—' }}</td>
+          <td style="font-size:13px;color:#9ca3af;">{{ r.uploaded_at.strftime('%m/%d/%Y') }}</td>
+          <td>
+            <button class="btn btn-sm btn-danger" onclick="deleteReceipt({{ r.id }})">Delete</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No receipts yet. Upload your first one above.</div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+let selectedFile = null;
+
+function previewFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  selectedFile = file;
+  document.getElementById('uploadForm').style.display = 'grid';
+  if (file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('previewImg').src = e.target.result;
+      document.getElementById('uploadPreview').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  } else {
+    document.getElementById('uploadPreview').style.display = 'none';
+  }
+}
+
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    document.getElementById('fileInput').files = e.dataTransfer.files;
+    previewFile(document.getElementById('fileInput'));
+  }
+});
+
+function submitReceipt() {
+  if (!selectedFile) { alert('Please select a file first.'); return; }
+  const fd = new FormData();
+  fd.append('file', selectedFile);
+  fd.append('category', document.getElementById('catSelect').value);
+  fd.append('amount', document.getElementById('amountInput').value || '0');
+  fd.append('vendor', document.getElementById('vendorInput').value);
+  fd.append('job_id', document.getElementById('jobSelect').value);
+  fd.append('description', document.getElementById('descInput').value);
+  fetch('/api/receipts', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert(data.error); return; }
+      location.reload();
+    });
+}
+
+function deleteReceipt(id) {
+  if (!confirm('Delete this receipt?')) return;
+  fetch(`/api/receipts/${id}`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(() => { document.getElementById(`receipt-${id}`).remove(); });
+}
+</script>
+</body>
+</html>

@@ -132,6 +132,32 @@ class PlatformCredential(db.Model):
     __table_args__ = (db.UniqueConstraint('company_id', 'platform'),)
 
 
+class Receipt(db.Model):
+    __tablename__ = 'receipts'
+    id           = db.Column(db.Integer, primary_key=True)
+    company_id   = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    job_id       = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=True)
+    filename     = db.Column(db.String(300), nullable=False)
+    category     = db.Column(db.String(100), default='Uncategorized')
+    amount       = db.Column(db.Float)
+    vendor       = db.Column(db.String(200))
+    description  = db.Column(db.Text)
+    uploaded_by  = db.Column(db.String(200))
+    uploaded_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TechStandard(db.Model):
+    __tablename__ = 'tech_standards'
+    id           = db.Column(db.Integer, primary_key=True)
+    company_id   = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False, unique=True)
+    dress_code   = db.Column(db.Text, default='Professional attire required. Company shirt, clean pants, closed-toe shoes.')
+    eta_rules    = db.Column(db.Text, default='Arrive 10 minutes early. Notify client 30 minutes before arrival. Call if running late.')
+    deliverables = db.Column(db.Text, default='Take before/after photos. Collect client signature. Submit job notes within 1 hour of completion.')
+    safety_rules = db.Column(db.Text, default='PPE required on all job sites. Report any hazards immediately.')
+    updated_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -850,6 +876,121 @@ def platform_color(platform):
     }.get(platform, '#6b7280')
 
 
+
+# ─────────────────────────────────────────
+# RECEIPT LOGGER
+# ─────────────────────────────────────────
+
+RECEIPT_UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'uploads', 'receipts')
+os.makedirs(RECEIPT_UPLOAD_FOLDER, exist_ok=True)
+
+RECEIPT_CATEGORIES = ['Parts', 'Tools', 'Travel', 'Fuel', 'Food', 'Supplies', 'Subcontractor', 'Other']
+
+@app.route('/receipts')
+@login_required
+@owner_required
+def receipts():
+    all_receipts = Receipt.query.filter_by(company_id=current_user.company_id).order_by(Receipt.uploaded_at.desc()).all()
+    jobs = Job.query.filter_by(company_id=current_user.company_id).order_by(Job.start_time.desc()).all()
+    total = sum(r.amount or 0 for r in all_receipts)
+    by_category = {}
+    for r in all_receipts:
+        cat = r.category or 'Uncategorized'
+        by_category[cat] = by_category.get(cat, 0) + (r.amount or 0)
+    return render_template('receipts.html', receipts=all_receipts, jobs=jobs,
+                           total=total, by_category=by_category, categories=RECEIPT_CATEGORIES)
+
+@app.route('/api/receipts', methods=['POST'])
+@login_required
+@owner_required
+def upload_receipt():
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        return jsonify({'error': 'No file'}), 400
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.heic']:
+        return jsonify({'error': 'Invalid file type'}), 400
+    safe_name = f"{uuid.uuid4().hex}{ext}"
+    file.save(os.path.join(RECEIPT_UPLOAD_FOLDER, safe_name))
+    r = Receipt(
+        company_id  = current_user.company_id,
+        job_id      = request.form.get('job_id') or None,
+        filename    = safe_name,
+        category    = request.form.get('category', 'Other'),
+        amount      = float(request.form.get('amount', 0) or 0),
+        vendor      = request.form.get('vendor', ''),
+        description = request.form.get('description', ''),
+        uploaded_by = current_user.name,
+    )
+    db.session.add(r)
+    db.session.commit()
+    return jsonify({'id': r.id, 'filename': r.filename, 'category': r.category}), 201
+
+@app.route('/api/receipts/<int:receipt_id>', methods=['DELETE'])
+@login_required
+@owner_required
+def delete_receipt(receipt_id):
+    r = Receipt.query.filter_by(id=receipt_id, company_id=current_user.company_id).first_or_404()
+    try:
+        os.remove(os.path.join(RECEIPT_UPLOAD_FOLDER, r.filename))
+    except Exception:
+        pass
+    db.session.delete(r)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+@app.route('/uploads/receipts/<path:filename>')
+@login_required
+def serve_receipt(filename):
+    return send_from_directory(RECEIPT_UPLOAD_FOLDER, filename)
+
+
+# ─────────────────────────────────────────
+# TECH STANDARDS CARD
+# ─────────────────────────────────────────
+
+@app.route('/tech-standards', methods=['GET', 'POST'])
+@login_required
+@owner_required
+def tech_standards():
+    std = TechStandard.query.filter_by(company_id=current_user.company_id).first()
+    if not std:
+        std = TechStandard(company_id=current_user.company_id)
+        db.session.add(std)
+        db.session.commit()
+    if request.method == 'POST':
+        std.dress_code   = request.form.get('dress_code', std.dress_code)
+        std.eta_rules    = request.form.get('eta_rules', std.eta_rules)
+        std.deliverables = request.form.get('deliverables', std.deliverables)
+        std.safety_rules = request.form.get('safety_rules', std.safety_rules)
+        std.updated_at   = datetime.utcnow()
+        db.session.commit()
+        flash('Tech Standards updated.', 'success')
+        return redirect(url_for('tech_standards'))
+    return render_template('tech_standards.html', std=std)
+
+@app.route('/api/tech-standards/pdf')
+@login_required
+def tech_standards_pdf():
+    std = TechStandard.query.filter_by(company_id=current_user.company_id).first()
+    if not std:
+        return jsonify({'error': 'No standards set'}), 404
+    company = current_user.company
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;padding:40px;max-width:700px;margin:auto;">
+    <h1 style="color:#1e3a5f;border-bottom:2px solid #1e3a5f;padding-bottom:10px;">{company.name}</h1>
+    <h2 style="color:#1e3a5f;">Tech Standards Card</h2>
+    <h3>Dress Code</h3><p>{std.dress_code}</p>
+    <h3>ETA Rules</h3><p>{std.eta_rules}</p>
+    <h3>Deliverables</h3><p>{std.deliverables}</p>
+    <h3>Safety Rules</h3><p>{std.safety_rules}</p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:40px;">Last updated: {std.updated_at.strftime('%B %d, %Y')}</p>
+    </body></html>
+    """
+    from flask import Response
+    return Response(html, mimetype='text/html',
+                    headers={'Content-Disposition': 'attachment; filename=tech_standards.html'})
+
 def detect_conflicts(company_id):
     jobs = Job.query.filter_by(company_id=company_id).order_by(Job.start_time).all()
     conflicts = []
@@ -889,6 +1030,8 @@ with app.app_context():
             ('hourly_rate',      'ALTER TABLE users ADD COLUMN hourly_rate FLOAT'),
             ('client_name',      'ALTER TABLE jobs ADD COLUMN client_name VARCHAR(200)'),
             ('client_email',     'ALTER TABLE jobs ADD COLUMN client_email VARCHAR(200)'),
+        ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
+        ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
         ]:
             try:
                 conn.execute(text(ddl))
