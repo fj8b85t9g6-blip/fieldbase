@@ -234,7 +234,12 @@ def calendar():
 @login_required
 @owner_required
 def job_brief():
-    return render_template('job_brief.html')
+    employees = User.query.filter_by(
+        company_id=current_user.company_id,
+        role='employee',
+        is_active=True
+    ).order_by(User.name).all()
+    return render_template('job_brief.html', owner=current_user, employees=employees)
 
 
 @app.route('/invoice')

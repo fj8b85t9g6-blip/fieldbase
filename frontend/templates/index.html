@@ -134,7 +134,7 @@
         <div class="stat-card {% if unconfirmed %}warn{% endif %}">
             <div class="label">Unconfirmed</div>
             <div class="value">{{ unconfirmed|length }}</div>
-            <div class="sub">Awaiting tech response</div>
+            <div class="sub">Awaiting employee response</div>
         </div>
         <div class="stat-card {% if conflicts %}alert{% endif %}">
             <div class="label">Conflicts</div>
@@ -209,7 +209,7 @@
                             <span class="val">{{ job.platform | capitalize }}</span>
                         </div>
                         <div class="detail-item">
-                            <strong>Tech Pay</strong>
+                            <strong>Employee Pay</strong>
                             <span class="val">{% if job.tech_pay %}${{ '%.2f' | format(job.tech_pay) }}{% else %}—{% endif %}</span>
                         </div>
                         <div class="detail-item">
@@ -232,7 +232,7 @@
 
                     {% if job.employee_notes %}
                     <div class="employee-notes">
-                        <strong>Tech Notes</strong>
+                        <strong>Employee Notes</strong>
                         {{ job.employee_notes }}
                     </div>
                     {% endif %}
