@@ -115,7 +115,7 @@
     <div id="list-view">
     {% if jobs %}
       {% for job in jobs %}
-      <div class="job-card {{ 'in_progress' if job.status == 'in_progress' else ('complete' if job.status == 'complete' else ('confirmed' if job.tech_confirmed else 'unconfirmed')) }}" id="card-{{ job.id }}">
+      <div class="job-card {{ 'in_progress' if job.status == 'in_progress' else ('complete' if job.status == 'complete' else ('confirmed' if job.tech_confirmed else 'unconfirmed')) }}" id="card-{{ job.id }}" data-job-lat="{{ job.job_lat or '' }}" data-job-lng="{{ job.job_lng or '' }}">
 
         <div class="card-header">
           <div class="job-title">{{ job.title }}</div>
@@ -312,11 +312,32 @@
       setTimeout(() => t.classList.remove('show'), 2500);
     }
 
+    function haversineMiles(lat1, lng1, lat2, lng2) {
+      const R = 3958.8, toRad = x => x * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
     function jobAction(jobId, action) {
       if (action === 'clock-in' && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          pos => doAction(jobId, action, { lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          ()  => doAction(jobId, action, {})
+          pos => {
+            const empLat = pos.coords.latitude;
+            const empLng = pos.coords.longitude;
+            const card   = document.getElementById(`card-${jobId}`);
+            const jobLat = parseFloat(card.dataset.jobLat);
+            const jobLng = parseFloat(card.dataset.jobLng);
+            if (jobLat && jobLng) {
+              const dist = haversineMiles(empLat, empLng, jobLat, jobLng);
+              if (dist > 0.5) {
+                const go = confirm(`You appear to be ${dist.toFixed(1)} miles from this job site. Are you sure you want to clock in?`);
+                if (!go) return;
+              }
+            }
+            doAction(jobId, action, { lat: empLat, lng: empLng });
+          },
+          () => doAction(jobId, action, {})
         );
       } else {
         doAction(jobId, action, {});

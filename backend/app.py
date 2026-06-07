@@ -91,6 +91,8 @@ class Job(db.Model):
     external_job_id   = db.Column(db.String(200))
     clock_in_lat      = db.Column(db.Float)
     clock_in_lng      = db.Column(db.Float)
+    job_lat           = db.Column(db.Float)
+    job_lng           = db.Column(db.Float)
 
 
 class JobPhoto(db.Model):
@@ -160,6 +162,35 @@ class TechStandard(db.Model):
     safety_rules = db.Column(db.Text, default='PPE required on all job sites. Report any hazards immediately.')
     updated_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
+
+
+import math
+
+def _geocode_address(address):
+    if not address or len(address.strip()) < 5:
+        return None, None
+    try:
+        import requests as _req
+        resp = _req.get(
+            'https://nominatim.openstreetmap.org/search',
+            params={'q': address, 'format': 'json', 'limit': 1},
+            headers={'User-Agent': 'FieldBase/1.0'},
+            timeout=5
+        )
+        results = resp.json()
+        if results:
+            return float(results[0]['lat']), float(results[0]['lon'])
+    except Exception as e:
+        app.logger.warning(f'Geocode failed for "{address}": {e}')
+    return None, None
+
+def _haversine_miles(lat1, lng1, lat2, lng2):
+    R = 3958.8
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lng2 - lng1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlam/2)**2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
 
 @login_manager.user_loader
@@ -365,6 +396,8 @@ def add_job():
         client_company = data.get('client_company', ''),
         client_email   = data.get('client_email', ''),
     )
+    if job.location:
+        job.job_lat, job.job_lng = _geocode_address(job.location)
     db.session.add(job)
     db.session.commit()
     detect_and_save_conflicts(current_user.company_id)
@@ -566,11 +599,27 @@ def clock_in(job_id):
     job.clock_in_at = datetime.utcnow()
     job.status      = 'in_progress'
     data = request.get_json(silent=True) or {}
-    if data.get('lat') and data.get('lng'):
-        job.clock_in_lat = data['lat']
-        job.clock_in_lng = data['lng']
+    emp_lat = data.get('lat')
+    emp_lng = data.get('lng')
+    if emp_lat and emp_lng:
+        job.clock_in_lat = emp_lat
+        job.clock_in_lng = emp_lng
     db.session.commit()
-    loc_note = f' (GPS recorded)' if job.clock_in_lat else ''
+
+    loc_note = ' (GPS recorded)' if job.clock_in_lat else ''
+    if emp_lat and emp_lng and job.job_lat and job.job_lng:
+        dist = _haversine_miles(float(emp_lat), float(emp_lng), job.job_lat, job.job_lng)
+        loc_note = f' ({dist:.1f} mi from site)'
+        if dist > 0.5:
+            _notify_owner(
+                job,
+                f'Location Alert — {current_user.name} clocked in {dist:.1f} mi from site',
+                f'<p style="font-family:sans-serif;"><strong style="color:#dc2626;">Location Alert</strong></p>'
+                f'<p style="font-family:sans-serif;">{current_user.name} clocked in on <strong>{job.title}</strong> '
+                f'but is <strong>{dist:.1f} miles</strong> from the job site.</p>'
+                f'<p style="font-family:sans-serif;color:#6b7280;">Job address: {job.location or "N/A"}</p>'
+            )
+
     _notify_owner(job, f'Employee Clocked In — {job.title}', f'{current_user.name} clocked in on <strong>{job.title}</strong> at {job.clock_in_at.strftime("%I:%M %p")}{loc_note}.')
     return jsonify({'success': True})
 
@@ -1279,6 +1328,8 @@ with app.app_context():
             ('clock_in_lat',     'ALTER TABLE jobs ADD COLUMN clock_in_lat FLOAT'),
             ('clock_in_lng',     'ALTER TABLE jobs ADD COLUMN clock_in_lng FLOAT'),
             ('client_company',   'ALTER TABLE jobs ADD COLUMN client_company VARCHAR(200)'),
+            ('job_lat',          'ALTER TABLE jobs ADD COLUMN job_lat FLOAT'),
+            ('job_lng',          'ALTER TABLE jobs ADD COLUMN job_lng FLOAT'),
         ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
         ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
         ]:
