@@ -8,6 +8,12 @@ import bcrypt
 import os
 import smtplib
 import uuid
+import stripe
+
+stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_PRICE_ID      = os.environ.get('STRIPE_PRICE_ID', '')
+STRIPE_WEBHOOK_SECRET= os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+TRIAL_DAYS           = 14
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -42,9 +48,13 @@ class Company(db.Model):
     name       = db.Column(db.String(200), nullable=False)
     slug       = db.Column(db.String(100), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_active  = db.Column(db.Boolean, default=True)
-    users      = db.relationship('User', backref='company', lazy=True)
-    jobs       = db.relationship('Job', backref='company', lazy=True)
+    is_active              = db.Column(db.Boolean, default=True)
+    stripe_customer_id     = db.Column(db.String(100))
+    stripe_subscription_id = db.Column(db.String(100))
+    subscription_status    = db.Column(db.String(20))   # trialing, active, past_due, canceled
+    trial_ends_at          = db.Column(db.DateTime)
+    users                  = db.relationship('User', backref='company', lazy=True)
+    jobs                   = db.relationship('Job', backref='company', lazy=True)
 
 
 class User(UserMixin, db.Model):
@@ -209,13 +219,38 @@ def no_cache(response):
     return response
 
 
+def _has_active_access(company):
+    """True if company has an active subscription or is still in trial."""
+    if company.subscription_status is None:
+        return True  # account predates billing — grandfathered
+    if company.subscription_status == 'active':
+        return True
+    if company.subscription_status == 'trialing':
+        if company.trial_ends_at is None or datetime.utcnow() < company.trial_ends_at:
+            return True
+    return False
+
+
 def owner_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated or current_user.role != 'owner':
             return redirect(url_for('employee_dashboard'))
+        company = Company.query.get(current_user.company_id)
+        if company and not _has_active_access(company):
+            return redirect(url_for('billing'))
         return f(*args, **kwargs)
     return decorated
+
+
+@app.context_processor
+def inject_trial_info():
+    if current_user.is_authenticated and current_user.role == 'owner':
+        company = Company.query.get(current_user.company_id)
+        if company and company.trial_ends_at and company.subscription_status != 'active':
+            days_left = max(0, (company.trial_ends_at - datetime.utcnow()).days)
+            return {'trial_days_left': days_left}
+    return {'trial_days_left': None}
 
 # ─────────────────────────────────────────
 # AUTH ROUTES
@@ -246,7 +281,12 @@ def register():
             slug = f"{base_slug}-{counter}"
             counter += 1
 
-        company = Company(name=company_name, slug=slug)
+        from datetime import timedelta
+        company = Company(
+            name=company_name, slug=slug,
+            subscription_status='trialing',
+            trial_ends_at=datetime.utcnow() + timedelta(days=TRIAL_DAYS)
+        )
         db.session.add(company)
         db.session.flush()
 
@@ -1360,6 +1400,91 @@ def detect_and_save_conflicts(company_id):
     db.session.commit()
 
 # ─────────────────────────────────────────
+# BILLING
+# ─────────────────────────────────────────
+
+@app.route('/billing')
+@login_required
+def billing():
+    if current_user.role != 'owner':
+        return redirect(url_for('employee_dashboard'))
+    company = Company.query.get(current_user.company_id)
+    return render_template('billing.html', company=company)
+
+
+@app.route('/billing/create-checkout', methods=['POST'])
+@login_required
+def create_checkout():
+    if current_user.role != 'owner':
+        return jsonify({'error': 'unauthorized'}), 403
+    company = Company.query.get(current_user.company_id)
+    if not STRIPE_PRICE_ID:
+        return jsonify({'error': 'Billing not configured yet.'}), 500
+    if not company.stripe_customer_id:
+        customer = stripe.Customer.create(
+            email=current_user.email,
+            name=company.name,
+            metadata={'company_id': company.id}
+        )
+        company.stripe_customer_id = customer.id
+        db.session.commit()
+    session = stripe.checkout.Session.create(
+        customer=company.stripe_customer_id,
+        payment_method_types=['card'],
+        mode='subscription',
+        line_items=[{'price': STRIPE_PRICE_ID, 'quantity': 1}],
+        success_url=request.host_url + 'billing/success',
+        cancel_url=request.host_url + 'billing',
+    )
+    return jsonify({'url': session.url})
+
+
+@app.route('/billing/success')
+@login_required
+def billing_success():
+    flash('Subscription active — welcome to FieldBase!')
+    return redirect(url_for('index'))
+
+
+@app.route('/billing/portal', methods=['POST'])
+@login_required
+def billing_portal():
+    if current_user.role != 'owner':
+        return jsonify({'error': 'unauthorized'}), 403
+    company = Company.query.get(current_user.company_id)
+    if not company.stripe_customer_id:
+        return jsonify({'error': 'No subscription found'}), 400
+    session = stripe.billing_portal.Session.create(
+        customer=company.stripe_customer_id,
+        return_url=request.host_url + 'billing',
+    )
+    return jsonify({'url': session.url})
+
+
+@app.route('/stripe/webhook', methods=['POST'])
+def stripe_webhook():
+    payload    = request.get_data()
+    sig_header = request.headers.get('Stripe-Signature')
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except Exception:
+        return jsonify({'error': 'Invalid signature'}), 400
+    obj = event['data']['object']
+    if event['type'] in ('customer.subscription.created', 'customer.subscription.updated'):
+        company = Company.query.filter_by(stripe_customer_id=obj['customer']).first()
+        if company:
+            company.stripe_subscription_id = obj['id']
+            company.subscription_status    = obj['status']
+            db.session.commit()
+    elif event['type'] == 'customer.subscription.deleted':
+        company = Company.query.filter_by(stripe_customer_id=obj['customer']).first()
+        if company:
+            company.subscription_status = 'canceled'
+            db.session.commit()
+    return jsonify({'status': 'ok'})
+
+
+# ─────────────────────────────────────────
 # INIT — runs on every startup (Gunicorn + direct)
 # ─────────────────────────────────────────
 
@@ -1380,6 +1505,10 @@ with app.app_context():
             ('job_lng',          'ALTER TABLE jobs ADD COLUMN job_lng FLOAT'),
         ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
         ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
+        ('stripe_customer_id',     'ALTER TABLE companies ADD COLUMN stripe_customer_id VARCHAR(100)'),
+        ('stripe_subscription_id', 'ALTER TABLE companies ADD COLUMN stripe_subscription_id VARCHAR(100)'),
+        ('subscription_status',    'ALTER TABLE companies ADD COLUMN subscription_status VARCHAR(20)'),
+        ('trial_ends_at',          'ALTER TABLE companies ADD COLUMN trial_ends_at TIMESTAMP'),
         ]:
             try:
                 conn.execute(text(ddl))
