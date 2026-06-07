@@ -51,7 +51,10 @@
         .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
         .dot-scheduled  { background: #d1d5db; }
         .dot-confirmed  { background: #3b82f6; }
+        .dot-on_the_way { background: #0891b2; }
+        .dot-delayed    { background: #dc2626; }
         .dot-in_progress{ background: #8b5cf6; }
+        .dot-paused     { background: #f59e0b; }
         .dot-complete   { background: #22c55e; }
         .dot-unconfirmed{ background: #f59e0b; }
         .job-name { font-size: 14px; font-weight: 600; color: #1f2937; }
@@ -210,8 +213,14 @@
                             <span class="tech-name">{{ job.tech_assigned }}</span>
                             {% if not job.tech_confirmed %}
                                 <span class="badge badge-warn">Unconfirmed</span>
+                            {% elif job.status == 'on_the_way' %}
+                                <span class="badge" style="background:#e0f2fe;color:#0369a1;">On the Way</span>
+                            {% elif job.status == 'delayed' %}
+                                <span class="badge" style="background:#fee2e2;color:#dc2626;">Delayed</span>
                             {% elif job.status == 'in_progress' %}
                                 <span class="badge badge-purple">On Site</span>
+                            {% elif job.status == 'paused' %}
+                                <span class="badge" style="background:#fef3c7;color:#b45309;">Paused</span>
                             {% elif job.status == 'complete' %}
                                 <span class="badge badge-green">Complete</span>
                             {% else %}

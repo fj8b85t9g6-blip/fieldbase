@@ -592,6 +592,54 @@ def confirm_job(job_id):
     _notify_owner(job, f'Job Confirmed — {job.title}', f'{current_user.name} confirmed the job <strong>{job.title}</strong>.')
     return jsonify({'success': True})
 
+@app.route('/api/jobs/<int:job_id>/on-the-way', methods=['POST'])
+@login_required
+def on_the_way(job_id):
+    job = _employee_job(job_id)
+    job.status = 'on_the_way'
+    db.session.commit()
+    _notify_owner(job, f'On the Way — {job.title}', f'{current_user.name} is on the way to <strong>{job.title}</strong>.')
+    return jsonify({'success': True})
+
+@app.route('/api/jobs/<int:job_id>/delayed', methods=['POST'])
+@login_required
+def report_delayed(job_id):
+    job = _employee_job(job_id)
+    job.status = 'delayed'
+    data = request.get_json(silent=True) or {}
+    reason = data.get('reason', '').strip()
+    db.session.commit()
+    reason_line = f'<br>Reason: {reason}' if reason else ''
+    _notify_owner(job, f'Delay Alert — {job.title}', f'{current_user.name} is delayed on <strong>{job.title}</strong>.{reason_line}')
+    return jsonify({'success': True})
+
+@app.route('/api/jobs/<int:job_id>/resume-travel', methods=['POST'])
+@login_required
+def resume_travel(job_id):
+    job = _employee_job(job_id)
+    job.status = 'on_the_way'
+    db.session.commit()
+    _notify_owner(job, f'En Route Again — {job.title}', f'{current_user.name} is back on the way to <strong>{job.title}</strong>.')
+    return jsonify({'success': True})
+
+@app.route('/api/jobs/<int:job_id>/pause', methods=['POST'])
+@login_required
+def pause_job(job_id):
+    job = _employee_job(job_id)
+    job.status = 'paused'
+    db.session.commit()
+    _notify_owner(job, f'Job Paused — {job.title}', f'{current_user.name} paused work on <strong>{job.title}</strong>.')
+    return jsonify({'success': True})
+
+@app.route('/api/jobs/<int:job_id>/resume', methods=['POST'])
+@login_required
+def resume_job(job_id):
+    job = _employee_job(job_id)
+    job.status = 'in_progress'
+    db.session.commit()
+    _notify_owner(job, f'Job Resumed — {job.title}', f'{current_user.name} resumed work on <strong>{job.title}</strong>.')
+    return jsonify({'success': True})
+
 @app.route('/api/jobs/<int:job_id>/clock-in', methods=['POST'])
 @login_required
 def clock_in(job_id):

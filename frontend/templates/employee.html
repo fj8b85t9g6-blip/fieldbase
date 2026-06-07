@@ -24,7 +24,10 @@
     .job-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.09); margin-bottom: 20px; overflow: hidden; }
     .job-card.unconfirmed { border-left: 4px solid #f59e0b; }
     .job-card.confirmed   { border-left: 4px solid #3b82f6; }
+    .job-card.on_the_way  { border-left: 4px solid #0891b2; }
+    .job-card.delayed     { border-left: 4px solid #dc2626; }
     .job-card.in_progress { border-left: 4px solid #8b5cf6; }
+    .job-card.paused      { border-left: 4px solid #f59e0b; }
     .job-card.complete    { border-left: 4px solid #22c55e; }
 
     .card-header { padding: 18px 20px 12px; }
@@ -42,7 +45,10 @@
     .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
     .badge.scheduled  { background: #fef3c7; color: #92400e; }
     .badge.confirmed  { background: #dbeafe; color: #1d4ed8; }
+    .badge.on_the_way { background: #e0f2fe; color: #0369a1; }
+    .badge.delayed    { background: #fee2e2; color: #dc2626; }
     .badge.in_progress{ background: #ede9fe; color: #6d28d9; }
+    .badge.paused     { background: #fef3c7; color: #b45309; }
     .badge.complete   { background: #dcfce7; color: #166534; }
 
     .divider { height: 1px; background: #f3f4f6; margin: 0 20px; }
@@ -56,15 +62,23 @@
     .action-row { display: flex; gap: 10px; }
 
     .btn { flex: 1; padding: 12px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; text-align: center; }
-    .btn-confirm  { background: #f59e0b; color: #fff; }
-    .btn-confirm:hover  { background: #d97706; }
-    .btn-clockin  { background: #8b5cf6; color: #fff; }
-    .btn-clockin:hover  { background: #7c3aed; }
-    .btn-clockout { background: #3b82f6; color: #fff; }
-    .btn-clockout:hover { background: #2563eb; }
-    .btn-complete { background: #22c55e; color: #fff; }
-    .btn-complete:hover { background: #16a34a; }
-    .btn-disabled { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
+    .btn-confirm   { background: #f59e0b; color: #fff; }
+    .btn-confirm:hover   { background: #d97706; }
+    .btn-ontheway  { background: #0891b2; color: #fff; }
+    .btn-ontheway:hover  { background: #0e7490; }
+    .btn-delayed   { background: #dc2626; color: #fff; }
+    .btn-delayed:hover   { background: #b91c1c; }
+    .btn-clockin   { background: #8b5cf6; color: #fff; }
+    .btn-clockin:hover   { background: #7c3aed; }
+    .btn-pause     { background: #f59e0b; color: #fff; }
+    .btn-pause:hover     { background: #d97706; }
+    .btn-resume    { background: #22c55e; color: #fff; }
+    .btn-resume:hover    { background: #16a34a; }
+    .btn-clockout  { background: #3b82f6; color: #fff; }
+    .btn-clockout:hover  { background: #2563eb; }
+    .btn-complete  { background: #22c55e; color: #fff; }
+    .btn-complete:hover  { background: #16a34a; }
+    .btn-disabled  { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
 
     .time-track { font-size: 12px; color: #6b7280; padding: 0 20px 14px; }
     .time-track span { display: inline-block; margin-right: 16px; }
@@ -115,7 +129,7 @@
     <div id="list-view">
     {% if jobs %}
       {% for job in jobs %}
-      <div class="job-card {{ 'in_progress' if job.status == 'in_progress' else ('complete' if job.status == 'complete' else ('confirmed' if job.tech_confirmed else 'unconfirmed')) }}" id="card-{{ job.id }}" data-job-lat="{{ job.job_lat or '' }}" data-job-lng="{{ job.job_lng or '' }}">
+      <div class="job-card {{ job.status if job.status in ['on_the_way','delayed','in_progress','paused','complete'] else ('confirmed' if job.tech_confirmed else 'unconfirmed') }}" id="card-{{ job.id }}" data-job-lat="{{ job.job_lat or '' }}" data-job-lng="{{ job.job_lng or '' }}">
 
         <div class="card-header">
           <div class="job-title">{{ job.title }}</div>
@@ -135,7 +149,8 @@
             </div>
             <div class="meta-item">
               <strong>Status</strong>
-              <span class="badge {{ job.status }}">{{ job.status | replace('_', ' ') | title }}</span>
+              {% set status_labels = {'scheduled': 'Confirmed', 'on_the_way': 'On the Way', 'delayed': 'Delayed', 'in_progress': 'On Site', 'paused': 'Paused', 'complete': 'Complete'} %}
+              <span class="badge {{ job.status }}">{{ status_labels.get(job.status, job.status | replace('_',' ') | title) }}</span>
             </div>
           </div>
 
@@ -171,11 +186,27 @@
           {% if not job.tech_confirmed %}
             <button class="btn btn-confirm" onclick="jobAction({{ job.id }}, 'confirm')">Confirm Job</button>
           {% elif job.status == 'scheduled' %}
-            <button class="btn btn-clockin" onclick="jobAction({{ job.id }}, 'clock-in')">Clock In</button>
+            <button class="btn btn-ontheway" onclick="jobAction({{ job.id }}, 'on-the-way')">On the Way</button>
+          {% elif job.status == 'on_the_way' %}
+            <div class="action-row">
+              <button class="btn btn-clockin" onclick="jobAction({{ job.id }}, 'clock-in')">Clock In</button>
+              <button class="btn btn-delayed" onclick="jobAction({{ job.id }}, 'delayed')">Delayed</button>
+            </div>
+          {% elif job.status == 'delayed' %}
+            <div class="action-row">
+              <button class="btn btn-clockin" onclick="jobAction({{ job.id }}, 'clock-in')">Clock In</button>
+              <button class="btn btn-ontheway" onclick="jobAction({{ job.id }}, 'resume-travel')">On My Way Again</button>
+            </div>
           {% elif job.status == 'in_progress' and not job.clock_out_at %}
             <div class="action-row">
+              <button class="btn btn-pause" onclick="jobAction({{ job.id }}, 'pause')">Pause</button>
               <button class="btn btn-clockout" onclick="jobAction({{ job.id }}, 'clock-out')">Clock Out</button>
-              <button class="btn btn-complete" onclick="jobAction({{ job.id }}, 'complete')">Mark Complete</button>
+            </div>
+            <button class="btn btn-complete" onclick="jobAction({{ job.id }}, 'complete')">Mark Complete</button>
+          {% elif job.status == 'paused' %}
+            <div class="action-row">
+              <button class="btn btn-resume" onclick="jobAction({{ job.id }}, 'resume')">Resume</button>
+              <button class="btn btn-clockout" onclick="jobAction({{ job.id }}, 'clock-out')">Clock Out</button>
             </div>
           {% elif job.clock_out_at and job.status != 'complete' %}
             <button class="btn btn-complete" onclick="jobAction({{ job.id }}, 'complete')">Mark Complete</button>
@@ -320,6 +351,11 @@
     }
 
     function jobAction(jobId, action) {
+      if (action === 'delayed') {
+        const reason = prompt('Optional: what is causing the delay?') ?? '';
+        doAction(jobId, action, { reason });
+        return;
+      }
       if (action === 'clock-in' && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           pos => {
@@ -361,10 +397,15 @@
 
     function actionLabel(action) {
       return {
-        'confirm':   '✓ Job confirmed',
-        'clock-in':  '⏱ Clocked in',
-        'clock-out': '⏹ Clocked out',
-        'complete':  '✓ Job marked complete'
+        'confirm':        '✓ Job confirmed',
+        'on-the-way':     'On the way',
+        'delayed':        'Delay reported',
+        'resume-travel':  'Back on the way',
+        'clock-in':       'Clocked in',
+        'pause':          'Job paused',
+        'resume':         'Job resumed',
+        'clock-out':      'Clocked out',
+        'complete':       '✓ Job complete'
       }[action] || 'Done';
     }
 
