@@ -21,19 +21,6 @@
         .sync-toast { position: fixed; bottom: 24px; right: 24px; background: #1e3a5f; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 999; display: none; }
         .sync-toast.show { display: block; }
         .sync-toast.error { background: #dc2626; }
-        .voice-btn { background: #fff; color: #1e3a5f; border: none; border-radius: 6px; padding: 9px 18px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 6px; }
-        .voice-btn:hover { background: #e8edf4; }
-
-        /* Voice Modal */
-        .mic-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 10px 0 20px; }
-        .mic-btn { width: 80px; height: 80px; border-radius: 50%; background: #1e3a5f; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, transform 0.1s; }
-        .mic-btn:hover { background: #16304f; transform: scale(1.04); }
-        .mic-btn.recording { background: #dc2626; animation: pulse 1.4s ease-in-out infinite; }
-        .mic-btn svg { fill: #fff; }
-        @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.4); } 50% { box-shadow: 0 0 0 14px rgba(220,38,38,0); } }
-        .mic-status { font-size: 13px; color: #5a6a7e; font-weight: 500; }
-        .voice-transcript-box { width: 100%; min-height: 80px; background: #f4f6f9; border: 1px solid #d0d7e3; border-radius: 8px; padding: 12px 14px; font-size: 14px; color: #1a1a2e; line-height: 1.5; overflow-y: auto; white-space: pre-wrap; }
-        .voice-transcript-box.placeholder { color: #9ca3af; font-style: italic; }
 
         nav { background: #fff; border-bottom: 1px solid #dde3ec; padding: 0 40px; display: flex; gap: 4px; }
         nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #5a6a7e; text-decoration: none; border-bottom: 2px solid transparent; }
@@ -106,10 +93,6 @@
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
         <button class="sync-btn" id="sync-btn" onclick="syncPlatforms()">⟳ Sync</button>
-        <button class="voice-btn" onclick="openVoiceModal()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="#1e3a5f"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a1 1 0 0 1 1 1 6 6 0 0 0 12 0 1 1 0 1 1 2 0 8 8 0 0 1-7 7.93V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-1.07A8 8 0 0 1 4 12a1 1 0 0 1 1-1z"/></svg>
-            Voice
-        </button>
         <button class="add-btn" onclick="document.getElementById('add-modal').classList.add('show')">+ Add Job</button>
     </div>
 </header>
@@ -216,28 +199,6 @@
     </div>
 </div>
 
-<!-- Voice Modal -->
-<div id="voice-modal" class="modal-overlay">
-    <div class="modal">
-        <h2>New Job from Voice</h2>
-        <p style="font-size:13px;color:#5a6a7e;margin-bottom:18px;">Finish a call, then tap the mic and describe the job. Tap again to stop, then click Create Job.</p>
-        <div class="mic-wrap">
-            <button class="mic-btn" id="mic-btn" onclick="toggleRecording()">
-                <svg width="32" height="32" viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a1 1 0 0 1 1 1 6 6 0 0 0 12 0 1 1 0 1 1 2 0 8 8 0 0 1-7 7.93V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-1.07A8 8 0 0 1 4 12a1 1 0 0 1 1-1z"/></svg>
-            </button>
-            <span class="mic-status" id="mic-status">Tap to start recording</span>
-        </div>
-        <div class="form-group">
-            <label>Transcript</label>
-            <div class="voice-transcript-box placeholder" id="voice-transcript" contenteditable="true" spellcheck="false">Your words will appear here...</div>
-        </div>
-        <div class="modal-actions" style="margin-top:16px;">
-            <button class="btn-primary" id="voice-extract-btn" onclick="extractJobFromVoice()">Create Job</button>
-            <button class="btn-cancel" onclick="closeVoiceModal()">Cancel</button>
-        </div>
-    </div>
-</div>
-
 <script>
     let calendar;
 
@@ -327,125 +288,9 @@
         await loadConflicts();
     }
 
-    // ── Voice-to-Job ──────────────────────────────────────────────────
-    let recognition = null;
-    let isRecording = false;
-    let finalTranscript = '';
 
-    function openVoiceModal() {
-        finalTranscript = '';
-        const box = document.getElementById('voice-transcript');
-        box.textContent = 'Your words will appear here...';
-        box.classList.add('placeholder');
-        setMicState(false);
-        document.getElementById('voice-modal').classList.add('show');
-    }
-
-    function closeVoiceModal() {
-        if (isRecording) stopRecording();
-        document.getElementById('voice-modal').classList.remove('show');
-    }
-
-    function toggleRecording() {
-        if (isRecording) stopRecording();
-        else startRecording();
-    }
-
-    function startRecording() {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-            alert('Voice recording requires Chrome or Safari on iOS/macOS. Please use one of those browsers.');
-            return;
-        }
-        recognition = new SR();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        recognition.onresult = function(e) {
-            let interim = '';
-            for (let i = e.resultIndex; i < e.results.length; i++) {
-                if (e.results[i].isFinal) finalTranscript += e.results[i][0].transcript + ' ';
-                else interim += e.results[i][0].transcript;
-            }
-            const box = document.getElementById('voice-transcript');
-            box.classList.remove('placeholder');
-            box.textContent = (finalTranscript + interim).trim();
-        };
-
-        recognition.onerror = function(e) {
-            if (e.error !== 'no-speech') alert('Microphone error: ' + e.error);
-            setMicState(false);
-            isRecording = false;
-        };
-
-        recognition.onend = function() {
-            if (isRecording) {
-                // auto-restart on natural pause so continuous mode keeps going
-                try { recognition.start(); } catch(_) {}
-            }
-        };
-
-        recognition.start();
-        isRecording = true;
-        setMicState(true);
-    }
-
-    function stopRecording() {
-        isRecording = false;
-        if (recognition) { recognition.stop(); recognition = null; }
-        setMicState(false);
-    }
-
-    function setMicState(recording) {
-        document.getElementById('mic-btn').classList.toggle('recording', recording);
-        document.getElementById('mic-status').textContent = recording ? 'Listening — tap to stop' : 'Tap to start recording';
-    }
-
-    async function extractJobFromVoice() {
-        const transcript = document.getElementById('voice-transcript').textContent.trim();
-        if (!transcript || transcript === 'Your words will appear here...') {
-            alert('Record a voice note first.');
-            return;
-        }
-        if (isRecording) stopRecording();
-
-        const btn = document.getElementById('voice-extract-btn');
-        btn.textContent = 'Analyzing...';
-        btn.disabled = true;
-
-        try {
-            const res = await fetch('/api/voice-to-job', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ transcript })
-            });
-            const fields = await res.json();
-            if (!res.ok) { alert(fields.error || 'Failed to extract job details.'); return; }
-
-            // Clear and fill Add Job modal
-            ['job-title','job-location','job-tech','job-start','job-end','job-notes','job-client-name','job-client-email'].forEach(id => {
-                document.getElementById(id).value = '';
-            });
-            if (fields.title)        document.getElementById('job-title').value        = fields.title;
-            if (fields.platform)     document.getElementById('job-platform').value     = fields.platform;
-            if (fields.location)     document.getElementById('job-location').value     = fields.location;
-            if (fields.client_name)  document.getElementById('job-client-name').value  = fields.client_name;
-            if (fields.client_email) document.getElementById('job-client-email').value = fields.client_email;
-            if (fields.start)        document.getElementById('job-start').value        = fields.start;
-            if (fields.end)          document.getElementById('job-end').value          = fields.end;
-            if (fields.notes)        document.getElementById('job-notes').value        = fields.notes;
-
-            closeVoiceModal();
-            document.getElementById('add-modal').classList.add('show');
-        } catch (_) {
-            alert('Connection error. Please try again.');
-        } finally {
-            btn.textContent = 'Create Job';
-            btn.disabled = false;
-        }
-    }
 </script>
 <div id="sync-toast" class="sync-toast"></div>
+{% include '_voice_fab.html' %}
 </body>
 </html>

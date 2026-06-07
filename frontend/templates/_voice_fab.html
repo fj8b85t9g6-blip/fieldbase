@@ -1,0 +1,306 @@
+<!-- ── Voice FAB (floating action button + modal) — included on all owner pages ── -->
+<style>
+.vfab-btn {
+    position: fixed; bottom: 28px; right: 28px; z-index: 200;
+    width: 58px; height: 58px; border-radius: 50%;
+    background: #1e3a5f; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    transition: background 0.2s, transform 0.15s;
+}
+.vfab-btn:hover { background: #16304f; transform: scale(1.06); }
+.vfab-btn svg { fill: #fff; }
+
+.vfab-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 300;
+    align-items: center; justify-content: center;
+}
+.vfab-overlay.show { display: flex; }
+.vfab-modal {
+    background: #fff; border-radius: 12px; padding: 28px;
+    width: 100%; max-width: 480px; margin: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    max-height: 90vh; overflow-y: auto;
+}
+.vfab-modal h2 { font-size: 18px; font-weight: 700; color: #1e3a5f; margin: 0 0 6px; font-family: 'Segoe UI', sans-serif; }
+.vfab-modal p  { font-size: 13px; color: #5a6a7e; margin: 0 0 20px; font-family: 'Segoe UI', sans-serif; }
+
+.vfab-mic-wrap  { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 6px 0 18px; }
+.vfab-mic-btn   { width: 76px; height: 76px; border-radius: 50%; background: #1e3a5f; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, transform 0.1s; }
+.vfab-mic-btn:hover { background: #16304f; transform: scale(1.04); }
+.vfab-mic-btn.recording { background: #dc2626; animation: vfab-pulse 1.4s ease-in-out infinite; }
+.vfab-mic-btn svg { fill: #fff; }
+@keyframes vfab-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.4); } 50% { box-shadow: 0 0 0 14px rgba(220,38,38,0); } }
+.vfab-mic-status { font-size: 13px; color: #5a6a7e; font-weight: 500; font-family: 'Segoe UI', sans-serif; }
+
+.vfab-transcript {
+    width: 100%; min-height: 78px; background: #f4f6f9;
+    border: 1px solid #d0d7e3; border-radius: 8px;
+    padding: 11px 13px; font-size: 14px; color: #1a1a2e;
+    line-height: 1.5; overflow-y: auto; white-space: pre-wrap;
+    font-family: 'Segoe UI', sans-serif; outline: none;
+}
+.vfab-transcript.ph { color: #9ca3af; font-style: italic; }
+
+.vfab-fg  { display: flex; flex-direction: column; gap: 5px; margin-bottom: 13px; }
+.vfab-fg label { font-size: 11px; font-weight: 700; color: #5a6a7e; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Segoe UI', sans-serif; }
+.vfab-fg input, .vfab-fg select, .vfab-fg textarea {
+    background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 6px;
+    padding: 9px 13px; color: #1a1a2e; font-size: 14px;
+    font-family: 'Segoe UI', sans-serif; outline: none; transition: border 0.2s;
+    width: 100%; box-sizing: border-box;
+}
+.vfab-fg input:focus, .vfab-fg select:focus, .vfab-fg textarea:focus { border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.1); }
+.vfab-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.vfab-actions { display: flex; gap: 10px; margin-top: 18px; }
+.vfab-primary { flex: 1; background: #1e3a5f; color: #fff; border: none; border-radius: 6px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Segoe UI', sans-serif; }
+.vfab-primary:hover { background: #16304f; }
+.vfab-primary:disabled { background: #5a6a7e; cursor: not-allowed; }
+.vfab-cancel { flex: 1; background: #fff; color: #5a6a7e; border: 1.5px solid #d0d7e3; border-radius: 6px; padding: 11px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Segoe UI', sans-serif; }
+.vfab-cancel:hover { background: #f4f6f9; }
+
+.vfab-toast {
+    position: fixed; bottom: 100px; right: 28px; z-index: 400;
+    background: #166534; color: #fff; padding: 12px 20px;
+    border-radius: 8px; font-size: 14px; font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    font-family: 'Segoe UI', sans-serif;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.vfab-toast.show { opacity: 1; }
+.vfab-toast.err  { background: #dc2626; }
+
+@media (max-width: 480px) {
+    .vfab-btn  { bottom: 20px; right: 16px; width: 52px; height: 52px; }
+    .vfab-modal { padding: 20px 16px; }
+    .vfab-row  { grid-template-columns: 1fr; }
+}
+</style>
+
+<!-- Floating mic button -->
+<button class="vfab-btn" onclick="vfabOpen()" title="New Job from Voice">
+    <svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a1 1 0 0 1 1 1 6 6 0 0 0 12 0 1 1 0 1 1 2 0 8 8 0 0 1-7 7.93V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-1.07A8 8 0 0 1 4 12a1 1 0 0 1 1-1z"/></svg>
+</button>
+
+<!-- Modal -->
+<div id="vfab-overlay" class="vfab-overlay">
+  <div class="vfab-modal">
+
+    <!-- Step 1: Record -->
+    <div id="vfab-step-record">
+      <h2>New Job from Voice</h2>
+      <p>Finish a call, tap the mic, describe the job, tap again to stop — then hit Extract.</p>
+      <div class="vfab-mic-wrap">
+        <button class="vfab-mic-btn" id="vfab-mic-btn" onclick="vfabToggleRec()">
+          <svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a1 1 0 0 1 1 1 6 6 0 0 0 12 0 1 1 0 1 1 2 0 8 8 0 0 1-7 7.93V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-1.07A8 8 0 0 1 4 12a1 1 0 0 1 1-1z"/></svg>
+        </button>
+        <span class="vfab-mic-status" id="vfab-mic-status">Tap to start recording</span>
+      </div>
+      <div class="vfab-fg">
+        <label>Transcript</label>
+        <div class="vfab-transcript ph" id="vfab-transcript" contenteditable="true" spellcheck="false">Your words will appear here...</div>
+      </div>
+      <div class="vfab-actions">
+        <button class="vfab-primary" id="vfab-extract-btn" onclick="vfabExtract()">Extract Job Details</button>
+        <button class="vfab-cancel" onclick="vfabClose()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Review & Save -->
+    <div id="vfab-step-review" style="display:none;">
+      <h2>Review Job Details</h2>
+      <p>Edit anything, then save.</p>
+      <div class="vfab-fg"><label>Job Title *</label><input id="vfab-title" type="text" placeholder="e.g. Network Equipment Install"></div>
+      <div class="vfab-fg">
+        <label>Platform</label>
+        <select id="vfab-platform">
+          <option value="phone">Phone Call</option>
+          <option value="workmarket">WorkMarket</option>
+          <option value="fieldnation">Field Nation</option>
+          <option value="direct">Direct Client</option>
+          <option value="email">Email Ticket</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
+      <div class="vfab-fg"><label>Location</label><input id="vfab-location" type="text" placeholder="Job site address"></div>
+      <div class="vfab-row">
+        <div class="vfab-fg"><label>Client Name</label><input id="vfab-client-name" type="text" placeholder="Client name"></div>
+        <div class="vfab-fg"><label>Client Email</label><input id="vfab-client-email" type="email" placeholder="client@email.com"></div>
+      </div>
+      <div class="vfab-row">
+        <div class="vfab-fg"><label>Start *</label><input id="vfab-start" type="datetime-local"></div>
+        <div class="vfab-fg"><label>End *</label><input id="vfab-end" type="datetime-local"></div>
+      </div>
+      <div class="vfab-fg"><label>Notes</label><textarea id="vfab-notes" rows="2" placeholder="Scope of work, details..."></textarea></div>
+      <div class="vfab-actions">
+        <button class="vfab-primary" id="vfab-save-btn" onclick="vfabSave()">Save Job</button>
+        <button class="vfab-cancel" onclick="vfabShowStep('record')">Re-record</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="vfab-toast" class="vfab-toast"></div>
+
+<script>
+(function() {
+    let _rec = null, _recording = false, _final = '';
+
+    function show(id)  { document.getElementById(id).style.display = ''; }
+    function hide(id)  { document.getElementById(id).style.display = 'none'; }
+
+    window.vfabOpen = function() {
+        _final = '';
+        const box = document.getElementById('vfab-transcript');
+        box.textContent = 'Your words will appear here...';
+        box.classList.add('ph');
+        _setMic(false);
+        vfabShowStep('record');
+        document.getElementById('vfab-overlay').classList.add('show');
+    };
+
+    window.vfabClose = function() {
+        if (_recording) _stopRec();
+        document.getElementById('vfab-overlay').classList.remove('show');
+    };
+
+    window.vfabShowStep = function(step) {
+        hide('vfab-step-record');
+        hide('vfab-step-review');
+        show('vfab-step-' + step);
+    };
+
+    window.vfabToggleRec = function() {
+        _recording ? _stopRec() : _startRec();
+    };
+
+    function _startRec() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { alert('Voice recording requires Chrome or Safari.'); return; }
+        _rec = new SR();
+        _rec.continuous = true;
+        _rec.interimResults = true;
+        _rec.lang = 'en-US';
+        _rec.onresult = function(e) {
+            let interim = '';
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                if (e.results[i].isFinal) _final += e.results[i][0].transcript + ' ';
+                else interim += e.results[i][0].transcript;
+            }
+            const box = document.getElementById('vfab-transcript');
+            box.classList.remove('ph');
+            box.textContent = (_final + interim).trim();
+        };
+        _rec.onerror = function(e) {
+            if (e.error !== 'no-speech') alert('Mic error: ' + e.error);
+            _recording = false; _setMic(false);
+        };
+        _rec.onend = function() {
+            if (_recording) { try { _rec.start(); } catch(_) {} }
+        };
+        _rec.start();
+        _recording = true;
+        _setMic(true);
+    }
+
+    function _stopRec() {
+        _recording = false;
+        if (_rec) { _rec.stop(); _rec = null; }
+        _setMic(false);
+    }
+
+    function _setMic(on) {
+        document.getElementById('vfab-mic-btn').classList.toggle('recording', on);
+        document.getElementById('vfab-mic-status').textContent = on ? 'Listening — tap to stop' : 'Tap to start recording';
+    }
+
+    window.vfabExtract = async function() {
+        const transcript = document.getElementById('vfab-transcript').textContent.trim();
+        if (!transcript || transcript === 'Your words will appear here...') {
+            alert('Record a voice note first.'); return;
+        }
+        if (_recording) _stopRec();
+        const btn = document.getElementById('vfab-extract-btn');
+        btn.textContent = 'Analyzing...'; btn.disabled = true;
+        try {
+            const res = await fetch('/api/voice-to-job', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ transcript })
+            });
+            const f = await res.json();
+            if (!res.ok) { alert(f.error || 'Failed to extract details.'); return; }
+
+            document.getElementById('vfab-title').value        = f.title        || '';
+            document.getElementById('vfab-location').value     = f.location     || '';
+            document.getElementById('vfab-client-name').value  = f.client_name  || '';
+            document.getElementById('vfab-client-email').value = f.client_email || '';
+            document.getElementById('vfab-start').value        = f.start        || '';
+            document.getElementById('vfab-end').value          = f.end          || '';
+            document.getElementById('vfab-notes').value        = f.notes        || '';
+            if (f.platform) document.getElementById('vfab-platform').value = f.platform;
+
+            vfabShowStep('review');
+        } catch(_) {
+            alert('Connection error. Please try again.');
+        } finally {
+            btn.textContent = 'Extract Job Details'; btn.disabled = false;
+        }
+    };
+
+    window.vfabSave = async function() {
+        const title = document.getElementById('vfab-title').value.trim();
+        const start = document.getElementById('vfab-start').value;
+        const end   = document.getElementById('vfab-end').value;
+        if (!title || !start || !end) { alert('Title, start, and end are required.'); return; }
+
+        const btn = document.getElementById('vfab-save-btn');
+        btn.textContent = 'Saving...'; btn.disabled = true;
+        try {
+            const res = await fetch('/api/jobs', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    title,
+                    platform:     document.getElementById('vfab-platform').value,
+                    location:     document.getElementById('vfab-location').value,
+                    start,
+                    end,
+                    notes:        document.getElementById('vfab-notes').value,
+                    client_name:  document.getElementById('vfab-client-name').value,
+                    client_email: document.getElementById('vfab-client-email').value,
+                })
+            });
+            if (res.ok) {
+                vfabClose();
+                _toast('Job saved!', false);
+                // refresh calendar if on that page
+                if (window.calendar && typeof window.calendar.refetchEvents === 'function') {
+                    window.calendar.refetchEvents();
+                }
+            } else {
+                _toast('Save failed. Please try again.', true);
+            }
+        } catch(_) {
+            _toast('Connection error.', true);
+        } finally {
+            btn.textContent = 'Save Job'; btn.disabled = false;
+        }
+    };
+
+    function _toast(msg, err) {
+        const el = document.getElementById('vfab-toast');
+        el.textContent = msg;
+        el.className = 'vfab-toast show' + (err ? ' err' : '');
+        setTimeout(() => { el.className = 'vfab-toast'; }, 3000);
+    }
+
+    // Close on overlay click
+    document.getElementById('vfab-overlay').addEventListener('click', function(e) {
+        if (e.target === this) vfabClose();
+    });
+})();
+</script>
