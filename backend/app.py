@@ -85,6 +85,7 @@ class Job(db.Model):
     amount_paid       = db.Column(db.Float)
     notes             = db.Column(db.Text)
     client_name       = db.Column(db.String(200))
+    client_company    = db.Column(db.String(200))
     client_email      = db.Column(db.String(200))
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     external_job_id   = db.Column(db.String(200))
@@ -359,9 +360,10 @@ def add_job():
         tech_assigned = data.get('tech', ''),
         tech_pay      = data.get('tech_pay'),
         job_pay       = data.get('job_pay'),
-        notes         = data.get('notes', ''),
-        client_name   = data.get('client_name', ''),
-        client_email  = data.get('client_email', ''),
+        notes          = data.get('notes', ''),
+        client_name    = data.get('client_name', ''),
+        client_company = data.get('client_company', ''),
+        client_email   = data.get('client_email', ''),
     )
     db.session.add(job)
     db.session.commit()
@@ -899,6 +901,22 @@ def settings():
 
 
 # ─────────────────────────────────────────
+# TEAM MEMBERS API
+# ─────────────────────────────────────────
+
+@app.route('/api/team/members')
+@login_required
+@owner_required
+def team_members():
+    employees = User.query.filter_by(
+        company_id=current_user.company_id,
+        role='employee',
+        is_active=True
+    ).order_by(User.name).all()
+    return jsonify([{'name': e.name} for e in employees])
+
+
+# ─────────────────────────────────────────
 # VOICE-TO-JOB
 # ─────────────────────────────────────────
 
@@ -926,18 +944,21 @@ def voice_to_job():
 Extract job details from this voice transcript. Return ONLY a valid JSON object with these exact fields:
 - "title": short job title (required, never empty)
 - "platform": one of: workmarket, fieldnation, direct, email, phone, manual (default "phone" for phone calls)
-- "location": full job site address as a string (empty string if not mentioned)
-- "client_name": client's full name (empty string if not mentioned)
+- "location": full job site address (empty string if not mentioned)
+- "client_name": contact person's name — just the person, not their company (empty string if not mentioned)
+- "client_company": the company or organization the client works for or represents (empty string if not mentioned)
 - "client_email": client's email address (empty string if not mentioned)
+- "assigned_employee": full name of the employee/tech to assign this job to — extracted from phrases like "assign to Glenn", "this is for Glenn Dinkins", "send Glenn" (empty string if not mentioned)
 - "start": start datetime as YYYY-MM-DDTHH:MM (empty string if not mentioned)
 - "end": end datetime as YYYY-MM-DDTHH:MM (empty string if not mentioned)
-- "notes": scope of work and any other relevant details (empty string if none)
+- "notes": scope of work, tools required, and any other relevant details (empty string if none)
 
 Rules:
 - Convert relative dates to absolute dates based on today. "Tomorrow" = next calendar day, "next Monday" = the coming Monday, etc.
 - If only a date with no time is mentioned, use 08:00 for start and 17:00 for end as defaults.
 - If a duration is mentioned ("3 hours"), calculate end time from start.
 - If no date or time is mentioned at all, leave start and end as empty strings.
+- If tools are mentioned, include them in notes as "Tools needed: ...".
 - Return only the raw JSON object — no markdown, no code fences, no explanation.
 
 Transcript: "{transcript}"
@@ -1257,6 +1278,7 @@ with app.app_context():
             ('external_job_id',  'ALTER TABLE jobs ADD COLUMN external_job_id VARCHAR(200)'),
             ('clock_in_lat',     'ALTER TABLE jobs ADD COLUMN clock_in_lat FLOAT'),
             ('clock_in_lng',     'ALTER TABLE jobs ADD COLUMN clock_in_lng FLOAT'),
+            ('client_company',   'ALTER TABLE jobs ADD COLUMN client_company VARCHAR(200)'),
         ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
         ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
         ]:

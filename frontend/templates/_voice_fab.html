@@ -19,15 +19,32 @@
 .vfab-overlay.show { display: flex; }
 .vfab-modal {
     background: #fff; border-radius: 12px; padding: 28px;
-    width: 100%; max-width: 480px; margin: 16px;
+    width: 100%; max-width: 500px; margin: 16px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-    max-height: 90vh; overflow-y: auto;
+    max-height: 92vh; overflow-y: auto;
 }
-.vfab-modal h2 { font-size: 18px; font-weight: 700; color: #1e3a5f; margin: 0 0 6px; font-family: 'Segoe UI', sans-serif; }
-.vfab-modal p  { font-size: 13px; color: #5a6a7e; margin: 0 0 20px; font-family: 'Segoe UI', sans-serif; }
+.vfab-modal h2 { font-size: 18px; font-weight: 700; color: #1e3a5f; margin: 0 0 4px; font-family: 'Segoe UI', sans-serif; }
+.vfab-modal p  { font-size: 13px; color: #5a6a7e; margin: 0 0 16px; font-family: 'Segoe UI', sans-serif; line-height: 1.5; }
 
-.vfab-mic-wrap  { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 6px 0 18px; }
-.vfab-mic-btn   { width: 76px; height: 76px; border-radius: 50%; background: #1e3a5f; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, transform 0.1s; }
+/* Prompt cheat sheet */
+.vfab-prompt {
+    background: #f0f4f9; border: 1px solid #d0d7e3; border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 16px;
+}
+.vfab-prompt-ex {
+    font-size: 13px; color: #1e3a5f; font-style: italic; line-height: 1.5;
+    font-family: 'Segoe UI', sans-serif; margin-bottom: 10px;
+}
+.vfab-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.vfab-chip {
+    font-size: 11px; font-weight: 600; color: #5a6a7e;
+    background: #fff; border: 1px solid #d0d7e3;
+    border-radius: 20px; padding: 3px 10px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.vfab-mic-wrap  { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 0 16px; }
+.vfab-mic-btn   { width: 72px; height: 72px; border-radius: 50%; background: #1e3a5f; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, transform 0.1s; }
 .vfab-mic-btn:hover { background: #16304f; transform: scale(1.04); }
 .vfab-mic-btn.recording { background: #dc2626; animation: vfab-pulse 1.4s ease-in-out infinite; }
 .vfab-mic-btn svg { fill: #fff; }
@@ -35,7 +52,7 @@
 .vfab-mic-status { font-size: 13px; color: #5a6a7e; font-weight: 500; font-family: 'Segoe UI', sans-serif; }
 
 .vfab-transcript {
-    width: 100%; min-height: 78px; background: #f4f6f9;
+    width: 100%; min-height: 72px; background: #f4f6f9;
     border: 1px solid #d0d7e3; border-radius: 8px;
     padding: 11px 13px; font-size: 14px; color: #1a1a2e;
     line-height: 1.5; overflow-y: auto; white-space: pre-wrap;
@@ -43,7 +60,7 @@
 }
 .vfab-transcript.ph { color: #9ca3af; font-style: italic; }
 
-.vfab-fg  { display: flex; flex-direction: column; gap: 5px; margin-bottom: 13px; }
+.vfab-fg  { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 .vfab-fg label { font-size: 11px; font-weight: 700; color: #5a6a7e; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Segoe UI', sans-serif; }
 .vfab-fg input, .vfab-fg select, .vfab-fg textarea {
     background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 6px;
@@ -91,13 +108,29 @@
     <!-- Step 1: Record -->
     <div id="vfab-step-record">
       <h2>New Job from Voice</h2>
-      <p>Finish a call, tap the mic, describe the job, tap again to stop — then hit Extract.</p>
+      <p>Tap the mic and describe the job. Try to cover everything below.</p>
+
+      <div class="vfab-prompt">
+        <div class="vfab-prompt-ex">"Got a call from Mike Davis at TechNation — network equipment install at 4200 Richmond Road, Warrensville Heights. This Friday at 8 AM, about 3 hours. Assign to Glenn Dinkins. Tools needed: cable tester and ladder."</div>
+        <div class="vfab-chips">
+          <span class="vfab-chip">Contact name</span>
+          <span class="vfab-chip">Their company</span>
+          <span class="vfab-chip">Job type</span>
+          <span class="vfab-chip">Address</span>
+          <span class="vfab-chip">Date &amp; time</span>
+          <span class="vfab-chip">Duration</span>
+          <span class="vfab-chip">Assign to who</span>
+          <span class="vfab-chip">Tools needed</span>
+        </div>
+      </div>
+
       <div class="vfab-mic-wrap">
         <button class="vfab-mic-btn" id="vfab-mic-btn" onclick="vfabToggleRec()">
           <svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a1 1 0 0 1 1 1 6 6 0 0 0 12 0 1 1 0 1 1 2 0 8 8 0 0 1-7 7.93V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-1.07A8 8 0 0 1 4 12a1 1 0 0 1 1-1z"/></svg>
         </button>
         <span class="vfab-mic-status" id="vfab-mic-status">Tap to start recording</span>
       </div>
+
       <div class="vfab-fg">
         <label>Transcript</label>
         <div class="vfab-transcript ph" id="vfab-transcript" contenteditable="true" spellcheck="false">Your words will appear here...</div>
@@ -111,7 +144,7 @@
     <!-- Step 2: Review & Save -->
     <div id="vfab-step-review" style="display:none;">
       <h2>Review Job Details</h2>
-      <p>Edit anything, then save.</p>
+      <p>Edit anything before saving.</p>
       <div class="vfab-fg"><label>Job Title *</label><input id="vfab-title" type="text" placeholder="e.g. Network Equipment Install"></div>
       <div class="vfab-fg">
         <label>Platform</label>
@@ -126,14 +159,21 @@
       </div>
       <div class="vfab-fg"><label>Location</label><input id="vfab-location" type="text" placeholder="Job site address"></div>
       <div class="vfab-row">
-        <div class="vfab-fg"><label>Client Name</label><input id="vfab-client-name" type="text" placeholder="Client name"></div>
-        <div class="vfab-fg"><label>Client Email</label><input id="vfab-client-email" type="email" placeholder="client@email.com"></div>
+        <div class="vfab-fg"><label>Client Name</label><input id="vfab-client-name" type="text" placeholder="Mike Davis"></div>
+        <div class="vfab-fg"><label>Client Company</label><input id="vfab-client-company" type="text" placeholder="TechNation"></div>
+      </div>
+      <div class="vfab-fg"><label>Client Email</label><input id="vfab-client-email" type="email" placeholder="client@email.com"></div>
+      <div class="vfab-fg">
+        <label>Assign Employee</label>
+        <select id="vfab-employee">
+          <option value="">— Unassigned —</option>
+        </select>
       </div>
       <div class="vfab-row">
         <div class="vfab-fg"><label>Start *</label><input id="vfab-start" type="datetime-local"></div>
         <div class="vfab-fg"><label>End *</label><input id="vfab-end" type="datetime-local"></div>
       </div>
-      <div class="vfab-fg"><label>Notes</label><textarea id="vfab-notes" rows="2" placeholder="Scope of work, details..."></textarea></div>
+      <div class="vfab-fg"><label>Notes</label><textarea id="vfab-notes" rows="3" placeholder="Scope of work, tools needed..."></textarea></div>
       <div class="vfab-actions">
         <button class="vfab-primary" id="vfab-save-btn" onclick="vfabSave()">Save Job</button>
         <button class="vfab-cancel" onclick="vfabShowStep('record')">Re-record</button>
@@ -148,9 +188,27 @@
 <script>
 (function() {
     let _rec = null, _recording = false, _final = '';
+    let _employees = [];
 
     function show(id)  { document.getElementById(id).style.display = ''; }
     function hide(id)  { document.getElementById(id).style.display = 'none'; }
+
+    async function _loadEmployees() {
+        try {
+            const res = await fetch('/api/team/members');
+            if (res.ok) {
+                _employees = await res.json();
+                const sel = document.getElementById('vfab-employee');
+                sel.innerHTML = '<option value="">— Unassigned —</option>';
+                _employees.forEach(e => {
+                    const opt = document.createElement('option');
+                    opt.value = e.name;
+                    opt.textContent = e.name;
+                    sel.appendChild(opt);
+                });
+            }
+        } catch(_) {}
+    }
 
     window.vfabOpen = function() {
         _final = '';
@@ -160,6 +218,7 @@
         _setMic(false);
         vfabShowStep('record');
         document.getElementById('vfab-overlay').classList.add('show');
+        _loadEmployees();
     };
 
     window.vfabClose = function() {
@@ -217,6 +276,17 @@
         document.getElementById('vfab-mic-status').textContent = on ? 'Listening — tap to stop' : 'Tap to start recording';
     }
 
+    function _matchEmployee(extracted) {
+        if (!extracted) return '';
+        const low = extracted.toLowerCase();
+        const match = _employees.find(e =>
+            e.name.toLowerCase() === low ||
+            e.name.toLowerCase().includes(low) ||
+            low.includes(e.name.toLowerCase())
+        );
+        return match ? match.name : '';
+    }
+
     window.vfabExtract = async function() {
         const transcript = document.getElementById('vfab-transcript').textContent.trim();
         if (!transcript || transcript === 'Your words will appear here...') {
@@ -234,14 +304,19 @@
             const f = await res.json();
             if (!res.ok) { alert(f.error || 'Failed to extract details.'); return; }
 
-            document.getElementById('vfab-title').value        = f.title        || '';
-            document.getElementById('vfab-location').value     = f.location     || '';
-            document.getElementById('vfab-client-name').value  = f.client_name  || '';
-            document.getElementById('vfab-client-email').value = f.client_email || '';
-            document.getElementById('vfab-start').value        = f.start        || '';
-            document.getElementById('vfab-end').value          = f.end          || '';
-            document.getElementById('vfab-notes').value        = f.notes        || '';
+            document.getElementById('vfab-title').value          = f.title          || '';
+            document.getElementById('vfab-location').value       = f.location       || '';
+            document.getElementById('vfab-client-name').value    = f.client_name    || '';
+            document.getElementById('vfab-client-company').value = f.client_company || '';
+            document.getElementById('vfab-client-email').value   = f.client_email   || '';
+            document.getElementById('vfab-start').value          = f.start          || '';
+            document.getElementById('vfab-end').value            = f.end            || '';
+            document.getElementById('vfab-notes').value          = f.notes          || '';
             if (f.platform) document.getElementById('vfab-platform').value = f.platform;
+
+            // Match extracted employee name to actual employee dropdown
+            const matched = _matchEmployee(f.assigned_employee || '');
+            document.getElementById('vfab-employee').value = matched;
 
             vfabShowStep('review');
         } catch(_) {
@@ -265,19 +340,20 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     title,
-                    platform:     document.getElementById('vfab-platform').value,
-                    location:     document.getElementById('vfab-location').value,
+                    platform:       document.getElementById('vfab-platform').value,
+                    location:       document.getElementById('vfab-location').value,
+                    tech:           document.getElementById('vfab-employee').value,
                     start,
                     end,
-                    notes:        document.getElementById('vfab-notes').value,
-                    client_name:  document.getElementById('vfab-client-name').value,
-                    client_email: document.getElementById('vfab-client-email').value,
+                    notes:          document.getElementById('vfab-notes').value,
+                    client_name:    document.getElementById('vfab-client-name').value,
+                    client_company: document.getElementById('vfab-client-company').value,
+                    client_email:   document.getElementById('vfab-client-email').value,
                 })
             });
             if (res.ok) {
                 vfabClose();
                 _toast('Job saved!', false);
-                // refresh calendar if on that page
                 if (window.calendar && typeof window.calendar.refetchEvents === 'function') {
                     window.calendar.refetchEvents();
                 }
@@ -298,7 +374,6 @@
         setTimeout(() => { el.className = 'vfab-toast'; }, 3000);
     }
 
-    // Close on overlay click
     document.getElementById('vfab-overlay').addEventListener('click', function(e) {
         if (e.target === this) vfabClose();
     });
