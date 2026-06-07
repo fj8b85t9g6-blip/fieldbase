@@ -240,7 +240,7 @@
         calInit = true;
         const cal = new FullCalendar.Calendar(document.getElementById('emp-calendar'), {
           initialView: 'dayGridMonth',
-          headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
+          headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,timeGridWeek' },
           events: '/api/employee/jobs',
           height: 'auto',
           eventClick: function(info) {
