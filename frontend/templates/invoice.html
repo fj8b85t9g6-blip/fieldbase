@@ -109,12 +109,12 @@
   <a href="/settings" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Settings</a>
     <a href="/billing">Billing</a>
 </nav>
-  {%% if trial_days_left is not none and trial_days_left <= 7 %%}
+  {% if trial_days_left is not none and trial_days_left <= 7 %}
   <div style="background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 32px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;">
-    <span>{%% if trial_days_left == 0 %%}Your free trial has ended.{%% else %%}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{%% endif %%} Subscribe to keep access.</span>
+    <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
     <a href="/billing" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
   </div>
-  {%% endif %%}
+  {% endif %}
 
 <div class="container">
 
