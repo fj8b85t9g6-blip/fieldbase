@@ -358,10 +358,11 @@
                     window.calendar.refetchEvents();
                 }
             } else {
-                _toast('Save failed. Please try again.', true);
+                const txt = await res.text().catch(() => '');
+                _toast('Save failed (' + res.status + '). ' + txt.slice(0, 80), true);
             }
-        } catch(_) {
-            _toast('Connection error.', true);
+        } catch(err) {
+            _toast('Connection error: ' + err.message, true);
         } finally {
             btn.textContent = 'Save Job'; btn.disabled = false;
         }
