@@ -6,3 +6,4 @@ bcrypt
 requests
 gunicorn
 python-dateutil==2.9.0
+anthropic

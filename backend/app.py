@@ -899,6 +899,69 @@ def settings():
 
 
 # ─────────────────────────────────────────
+# VOICE-TO-JOB
+# ─────────────────────────────────────────
+
+@app.route('/api/voice-to-job', methods=['POST'])
+@login_required
+@owner_required
+def voice_to_job():
+    import anthropic as ant
+    import json as json_lib
+    from datetime import date
+
+    data = request.json or {}
+    transcript = (data.get('transcript') or '').strip()
+    if not transcript:
+        return jsonify({'error': 'No transcript provided'}), 400
+
+    api_key = os.environ.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'ANTHROPIC_API_KEY not configured in Railway'}), 500
+
+    today = date.today().strftime('%A, %B %d, %Y')
+
+    prompt = f"""Today is {today}.
+
+Extract job details from this voice transcript. Return ONLY a valid JSON object with these exact fields:
+- "title": short job title (required, never empty)
+- "platform": one of: workmarket, fieldnation, direct, email, phone, manual (default "phone" for phone calls)
+- "location": full job site address as a string (empty string if not mentioned)
+- "client_name": client's full name (empty string if not mentioned)
+- "client_email": client's email address (empty string if not mentioned)
+- "start": start datetime as YYYY-MM-DDTHH:MM (empty string if not mentioned)
+- "end": end datetime as YYYY-MM-DDTHH:MM (empty string if not mentioned)
+- "notes": scope of work and any other relevant details (empty string if none)
+
+Rules:
+- Convert relative dates to absolute dates based on today. "Tomorrow" = next calendar day, "next Monday" = the coming Monday, etc.
+- If only a date with no time is mentioned, use 08:00 for start and 17:00 for end as defaults.
+- If a duration is mentioned ("3 hours"), calculate end time from start.
+- If no date or time is mentioned at all, leave start and end as empty strings.
+- Return only the raw JSON object — no markdown, no code fences, no explanation.
+
+Transcript: "{transcript}"
+"""
+
+    client = ant.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model='claude-haiku-4-5-20251001',
+        max_tokens=500,
+        messages=[{'role': 'user', 'content': prompt}]
+    )
+
+    try:
+        text = message.content[0].text.strip()
+        if text.startswith('```'):
+            text = text.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+        result = json_lib.loads(text)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f'voice-to-job parse error: {e} | raw: {message.content[0].text}')
+        return jsonify({'error': 'Could not parse job details from transcript'}), 500
+
+
+# ─────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────
 
