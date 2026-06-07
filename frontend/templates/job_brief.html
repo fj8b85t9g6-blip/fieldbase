@@ -52,6 +52,12 @@
   @media (max-width: 600px) {
     .form-grid { grid-template-columns: 1fr; }
   }
+  @media print {
+    header, nav, .card:not(#preview-card), .btn-row, .btn, select, input, textarea, label { display: none !important; }
+    #preview-card { display: block !important; box-shadow: none; border: none; }
+    .preview-box { white-space: pre-wrap; font-family: monospace; font-size: 13px; }
+    body { background: #fff; }
+  }
 </style>
 </head>
 <body>
@@ -194,7 +200,7 @@
     <p style="font-size:11px;color:#9ca3af;margin-top:8px;">PDF, Word, Excel, images, CSV supported</p>
   </div>
 
-  <div class="card">
+  <div class="card" id="preview-card">
     <h2>Generated SOW</h2>
     <div class="btn-row">
       <button class="btn" onclick="generateBrief()">Generate Brief</button>
@@ -377,11 +383,7 @@ function renderPendingDocs() {
 }
 
 function printBrief() {
-  const content = document.getElementById('previewBox').textContent;
-  const w = window.open('', '_blank');
-  w.document.write('<pre style="font-family:monospace;font-size:13px;padding:40px;color:#000;">' + content + '</pre>');
-  w.document.close();
-  w.print();
+  window.print();
 }
 </script>
 </body>
