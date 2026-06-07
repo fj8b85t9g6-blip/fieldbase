@@ -420,56 +420,64 @@ def get_jobs():
 @login_required
 @owner_required
 def add_job():
-    data = request.json
-    job = Job(
-        company_id    = current_user.company_id,
-        title         = data['title'],
-        platform      = data.get('platform', 'manual'),
-        location      = data.get('location', ''),
-        start_time    = datetime.fromisoformat(data['start']),
-        end_time      = datetime.fromisoformat(data['end']),
-        tech_assigned = data.get('tech', ''),
-        tech_pay      = data.get('tech_pay'),
-        job_pay       = data.get('job_pay'),
-        notes          = data.get('notes', ''),
-        client_name    = data.get('client_name', ''),
-        client_company = data.get('client_company', ''),
-        client_email   = data.get('client_email', ''),
-    )
-    if job.location:
-        job.job_lat, job.job_lng = _geocode_address(job.location)
-    db.session.add(job)
-    db.session.commit()
-    detect_and_save_conflicts(current_user.company_id)
+    try:
+        data = request.json
+        job = Job(
+            company_id    = current_user.company_id,
+            title         = data['title'],
+            platform      = data.get('platform', 'manual'),
+            location      = data.get('location', ''),
+            start_time    = datetime.fromisoformat(data['start']),
+            end_time      = datetime.fromisoformat(data['end']),
+            tech_assigned = data.get('tech', ''),
+            tech_pay      = data.get('tech_pay'),
+            job_pay       = data.get('job_pay'),
+            notes          = data.get('notes', ''),
+            client_name    = data.get('client_name', ''),
+            client_company = data.get('client_company', ''),
+            client_email   = data.get('client_email', ''),
+        )
+        if job.location:
+            job.job_lat, job.job_lng = _geocode_address(job.location)
+        db.session.add(job)
+        db.session.commit()
+        try:
+            detect_and_save_conflicts(current_user.company_id)
+        except Exception as ce:
+            app.logger.error(f'Conflict detection failed: {ce}')
 
-    # Notify assigned employee by email
-    if job.tech_assigned:
-        emp = User.query.filter_by(
-            company_id=current_user.company_id,
-            name=job.tech_assigned,
-            role='employee'
-        ).first()
-        if emp:
-            html = f"""
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-              <div style="background:#1e3a5f;padding:24px 32px;">
-                <h1 style="color:#fff;margin:0;font-size:20px;">New Job Assigned</h1>
-                <p style="color:#a8c4e0;margin:4px 0 0;">{current_user.company.name}</p>
-              </div>
-              <div style="padding:32px;">
-                <p style="color:#374151;">Hi {emp.name}, you have been assigned a new job.</p>
-                <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-                  <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Job</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.title}</td></tr>
-                  <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Date</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.start_time.strftime('%A, %B %d at %I:%M %p')}</td></tr>
-                  <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Location</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.location or 'TBD'}</td></tr>
-                  {"<tr><td style='padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;'>Pay</td><td style='padding:10px 14px;font-size:14px;font-weight:700;color:#166534;'>$" + f"{job.tech_pay:.2f}" + "</td></tr>" if job.tech_pay else ""}
-                </table>
-                <p style="color:#374151;">Please log in to confirm this job.</p>
-              </div>
-            </div>"""
-            send_email(emp.email, f'New Job: {job.title}', html)
+        # Notify assigned employee by email
+        if job.tech_assigned:
+            emp = User.query.filter_by(
+                company_id=current_user.company_id,
+                name=job.tech_assigned,
+                role='employee'
+            ).first()
+            if emp:
+                html = f"""
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                  <div style="background:#1e3a5f;padding:24px 32px;">
+                    <h1 style="color:#fff;margin:0;font-size:20px;">New Job Assigned</h1>
+                    <p style="color:#a8c4e0;margin:4px 0 0;">{current_user.company.name}</p>
+                  </div>
+                  <div style="padding:32px;">
+                    <p style="color:#374151;">Hi {emp.name}, you have been assigned a new job.</p>
+                    <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+                      <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Job</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.title}</td></tr>
+                      <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Date</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.start_time.strftime('%A, %B %d at %I:%M %p')}</td></tr>
+                      <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;">Location</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.location or 'TBD'}</td></tr>
+                      {"<tr><td style='padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;'>Pay</td><td style='padding:10px 14px;font-size:14px;font-weight:700;color:#166534;'>$" + f"{job.tech_pay:.2f}" + "</td></tr>" if job.tech_pay else ""}
+                    </table>
+                    <p style="color:#374151;">Please log in to confirm this job.</p>
+                  </div>
+                </div>"""
+                send_email(emp.email, f'New Job: {job.title}', html)
 
-    return jsonify({'success': True, 'id': job.id})
+        return jsonify({'success': True, 'id': job.id})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f'add_job error: {e}')
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
