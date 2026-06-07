@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FieldBase — Work Log</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
+  header { background: #1e3a5f; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 20px; color: #fff; font-weight: 700; }
+  header .meta { display: flex; align-items: center; gap: 20px; }
+  header .meta span { color: #94a3b8; font-size: 13px; }
+  header .meta a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+  header .meta a:hover { color: #fff; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 32px; display: flex; gap: 4px; overflow-x: auto; }
+  nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+  nav a:hover { color: #1e3a5f; }
+  nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
+  .container { max-width: 960px; margin: 28px auto; padding: 0 24px; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .page-title { font-size: 22px; font-weight: 700; color: #1e3a5f; }
+  .page-sub { font-size: 14px; color: #6b7280; margin-top: 4px; }
+
+  .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-bar select { padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; color: #1a1a2e; outline: none; }
+  .filter-bar select:focus { border-color: #1e3a5f; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: #fff; border-radius: 10px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); border-top: 3px solid #1e3a5f; }
+  .stat-card .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 6px; }
+  .stat-card .value { font-size: 26px; font-weight: 700; color: #1e3a5f; }
+
+  .card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); overflow: hidden; margin-bottom: 16px; }
+  .card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; padding: 16px 20px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #9ca3af; padding: 10px 16px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+  td { font-size: 14px; color: #374151; padding: 14px 16px; border-bottom: 1px solid #f9fafb; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: #dcfce7; color: #166534; }
+  .emp-name { font-weight: 600; color: #1e3a5f; }
+  .job-title { font-weight: 600; color: #1a1a2e; }
+  .job-meta { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+  .empty { text-align: center; padding: 48px; color: #9ca3af; font-size: 14px; }
+
+  @media (max-width: 720px) {
+    header { padding: 12px 16px; }
+    nav { padding: 0 12px; }
+    nav a { padding: 12px 10px; font-size: 13px; }
+    .container { padding: 0 12px; margin-top: 20px; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    th, td { padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>FieldBase</h1>
+  <div class="meta">
+    <span>{{ current_user.company.name }}</span>
+    <a href="/logout">Sign out</a>
+  </div>
+</header>
+<nav>
+  <a href="/">Dashboard</a>
+  <a href="/calendar">Calendar</a>
+  <a href="/job-brief">SOW</a>
+  <a href="/invoice">Invoices</a>
+  <a href="/team">Team</a>
+  <a href="/reports">Reports</a>
+  <a href="/receipts">Receipts</a>
+  <a href="/tech-standards">Standards</a>
+  <a href="/work-log" class="active">Work Log</a>
+  {% if current_user.role == 'owner' %}
+  <a href="/settings">Settings</a>
+  {% endif %}
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Work Log</div>
+      <div class="page-sub">All completed jobs{% if viewer == 'employee' %} assigned to you{% endif %}</div>
+    </div>
+  </div>
+
+  {% if viewer == 'owner' and employees %}
+  <div class="filter-bar">
+    <select id="emp-filter" onchange="filterByEmployee(this.value)">
+      <option value="">All Employees</option>
+      {% for emp in employees %}
+      <option value="{{ emp.name }}">{{ emp.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="label">Total Completed</div>
+      <div class="value" id="stat-total">{{ jobs|length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">This Month</div>
+      <div class="value" id="stat-month">{{ jobs | selectattr('completed_at') | list | length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Earned</div>
+      <div class="value">${{ "%.0f"|format(jobs | sum(attribute='tech_pay') if viewer == 'employee' else jobs | sum(attribute='job_pay')) }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Job</th>
+          {% if viewer == 'owner' %}<th>Employee</th>{% endif %}
+          <th>Platform</th>
+          <th>Completed</th>
+          <th>Duration</th>
+        </tr>
+      </thead>
+      <tbody id="log-body">
+        {% if jobs %}
+          {% for job in jobs %}
+          <tr class="log-row" data-emp="{{ job.tech_assigned or '' }}">
+            <td>
+              <div class="job-title">{{ job.title }}</div>
+              <div class="job-meta">{{ job.location or 'No location' }}</div>
+            </td>
+            {% if viewer == 'owner' %}
+            <td><span class="emp-name">{{ job.tech_assigned or '—' }}</span></td>
+            {% endif %}
+            <td>{{ job.platform or '—' }}</td>
+            <td>
+              {% if job.completed_at %}
+                {{ job.completed_at.strftime('%b %d, %Y') }}<br>
+                <span style="font-size:12px;color:#9ca3af;">{{ job.completed_at.strftime('%I:%M %p') }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              {% if job.clock_in_at and job.clock_out_at %}
+                {% set mins = ((job.clock_out_at - job.clock_in_at).seconds // 60) %}
+                {% if mins >= 60 %}{{ mins // 60 }}h {{ mins % 60 }}m{% else %}{{ mins }}m{% endif %}
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="5" class="empty">No completed jobs yet.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function filterByEmployee(name) {
+  document.querySelectorAll('.log-row').forEach(row => {
+    row.style.display = (!name || row.dataset.emp === name) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

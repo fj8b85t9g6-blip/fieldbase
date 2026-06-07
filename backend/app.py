@@ -87,7 +87,9 @@ class Job(db.Model):
     client_name       = db.Column(db.String(200))
     client_email      = db.Column(db.String(200))
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
-    external_job_id   = db.Column(db.String(200))  # ID from WorkMarket/FieldNation to prevent dupes
+    external_job_id   = db.Column(db.String(200))
+    clock_in_lat      = db.Column(db.Float)
+    clock_in_lng      = db.Column(db.Float)
 
 
 class JobPhoto(db.Model):
@@ -294,7 +296,8 @@ def job_brief():
         role='employee',
         is_active=True
     ).order_by(User.name).all()
-    return render_template('job_brief.html', owner=current_user, employees=employees)
+    std = TechStandard.query.filter_by(company_id=current_user.company_id).first()
+    return render_template('job_brief.html', owner=current_user, employees=employees, std=std)
 
 
 @app.route('/invoice')
@@ -538,6 +541,12 @@ def _employee_job(job_id):
     """Get a job that belongs to the current employee's company."""
     return Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
 
+def _notify_owner(job, subject, message):
+    owner = User.query.filter_by(company_id=job.company_id, role='owner').first()
+    if owner and owner.email:
+        html = f'<p style="font-family:sans-serif;font-size:15px;">{message}</p><p style="font-family:sans-serif;font-size:13px;color:#6b7280;">Job: <strong>{job.title}</strong></p>'
+        send_email(owner.email, subject, html)
+
 @app.route('/api/jobs/<int:job_id>/confirm', methods=['POST'])
 @login_required
 def confirm_job(job_id):
@@ -545,6 +554,7 @@ def confirm_job(job_id):
     job.tech_confirmed = True
     job.confirmed_at   = datetime.utcnow()
     db.session.commit()
+    _notify_owner(job, f'Job Confirmed — {job.title}', f'{current_user.name} confirmed the job <strong>{job.title}</strong>.')
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/clock-in', methods=['POST'])
@@ -553,7 +563,13 @@ def clock_in(job_id):
     job = _employee_job(job_id)
     job.clock_in_at = datetime.utcnow()
     job.status      = 'in_progress'
+    data = request.get_json(silent=True) or {}
+    if data.get('lat') and data.get('lng'):
+        job.clock_in_lat = data['lat']
+        job.clock_in_lng = data['lng']
     db.session.commit()
+    loc_note = f' (GPS recorded)' if job.clock_in_lat else ''
+    _notify_owner(job, f'Employee Clocked In — {job.title}', f'{current_user.name} clocked in on <strong>{job.title}</strong> at {job.clock_in_at.strftime("%I:%M %p")}{loc_note}.')
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/clock-out', methods=['POST'])
@@ -562,6 +578,7 @@ def clock_out(job_id):
     job = _employee_job(job_id)
     job.clock_out_at = datetime.utcnow()
     db.session.commit()
+    _notify_owner(job, f'Employee Clocked Out — {job.title}', f'{current_user.name} clocked out of <strong>{job.title}</strong> at {job.clock_out_at.strftime("%I:%M %p")}.')
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/complete', methods=['POST'])
@@ -573,6 +590,7 @@ def complete_job(job_id):
     if not job.clock_out_at:
         job.clock_out_at = datetime.utcnow()
     db.session.commit()
+    _notify_owner(job, f'Job Completed — {job.title}', f'{current_user.name} marked <strong>{job.title}</strong> as complete.')
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/employee-notes', methods=['POST'])
@@ -828,6 +846,21 @@ def reports():
         emp_counts=emp_counts,
     )
 
+
+# ─────────────────────────────────────────
+# WORK LOG
+# ─────────────────────────────────────────
+
+@app.route('/work-log')
+@login_required
+def work_log():
+    if current_user.role == 'owner':
+        employees = User.query.filter_by(company_id=current_user.company_id, role='employee').order_by(User.name).all()
+        completed = Job.query.filter_by(company_id=current_user.company_id, status='complete').order_by(Job.completed_at.desc()).all()
+        return render_template('work_log.html', employees=employees, jobs=completed, viewer='owner')
+    else:
+        completed = Job.query.filter_by(company_id=current_user.company_id, tech_assigned=current_user.name, status='complete').order_by(Job.completed_at.desc()).all()
+        return render_template('work_log.html', employees=[], jobs=completed, viewer='employee')
 
 # ─────────────────────────────────────────
 # SETTINGS ROUTES
@@ -1159,6 +1192,8 @@ with app.app_context():
             ('client_name',      'ALTER TABLE jobs ADD COLUMN client_name VARCHAR(200)'),
             ('client_email',     'ALTER TABLE jobs ADD COLUMN client_email VARCHAR(200)'),
             ('external_job_id',  'ALTER TABLE jobs ADD COLUMN external_job_id VARCHAR(200)'),
+            ('clock_in_lat',     'ALTER TABLE jobs ADD COLUMN clock_in_lat FLOAT'),
+            ('clock_in_lng',     'ALTER TABLE jobs ADD COLUMN clock_in_lng FLOAT'),
         ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
         ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
         ]:

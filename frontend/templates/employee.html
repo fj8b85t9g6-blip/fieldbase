@@ -47,9 +47,10 @@
 
     .divider { height: 1px; background: #f3f4f6; margin: 0 20px; }
 
-    .instructions { padding: 14px 20px; background: #fafafa; }
-    .instructions-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
-    .instructions-text { font-size: 14px; color: #374151; line-height: 1.5; }
+    .instructions { padding: 14px 20px; background: #f8fafc; }
+    .instructions-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; }
+    .sow-doc { background: #1e3a5f; border-radius: 8px; padding: 18px 20px; }
+    .sow-doc pre { font-family: 'Courier New', monospace; font-size: 12px; color: #e2e8f0; line-height: 1.8; white-space: pre-wrap; word-break: break-word; margin: 0; }
 
     .actions { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
     .action-row { display: flex; gap: 10px; }
@@ -92,6 +93,7 @@
       {% if current_user.hourly_rate %}
         <span style="background:#f0fdf4;color:#166534;font-size:12px;font-weight:700;padding:3px 10px;border-radius:10px;">${{ '%.2f'|format(current_user.hourly_rate) }}/hr</span>
       {% endif %}
+      <a href="/work-log">Work Log</a>
       <a href="/logout">Sign Out</a>
     </div>
   </nav>
@@ -151,8 +153,8 @@
         {% if job.notes %}
         <div class="divider"></div>
         <div class="instructions">
-          <div class="instructions-label">Instructions from Owner</div>
-          <div class="instructions-text">{{ job.notes }}</div>
+          <div class="instructions-label">Scope of Work</div>
+          <div class="sow-doc"><pre>{{ job.notes }}</pre></div>
         </div>
         {% endif %}
 
@@ -311,7 +313,22 @@
     }
 
     function jobAction(jobId, action) {
-      fetch(`/api/jobs/${jobId}/${action}`, { method: 'POST' })
+      if (action === 'clock-in' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => doAction(jobId, action, { lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          ()  => doAction(jobId, action, {})
+        );
+      } else {
+        doAction(jobId, action, {});
+      }
+    }
+
+    function doAction(jobId, action, body) {
+      fetch(`/api/jobs/${jobId}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
         .then(r => r.json())
         .then(data => {
           if (data.success) {
