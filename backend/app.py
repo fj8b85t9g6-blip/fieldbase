@@ -337,6 +337,9 @@ def index():
         return render_template('landing.html')
     if current_user.role == 'employee':
         return redirect(url_for('employee_dashboard'))
+    company = Company.query.get(current_user.company_id)
+    if company and not _has_active_access(company):
+        return redirect(url_for('billing'))
     from datetime import date
     jobs        = Job.query.filter_by(company_id=current_user.company_id).order_by(Job.start_time).all()
     conflicts   = detect_conflicts(current_user.company_id)
@@ -412,8 +415,34 @@ def get_jobs():
         'status':    j.status,
         'tech':      j.tech_assigned,
         'confirmed': j.tech_confirmed,
+        'tech_pay':  j.tech_pay,
+        'job_pay':   j.job_pay,
+        'notes':     j.notes,
+        'client_name':    j.client_name,
+        'client_company': j.client_company,
+        'client_email':   j.client_email,
         'color':     platform_color(j.platform)
     } for j in jobs])
+
+
+def _to_float(value):
+    """Coerce form/JSON values to float or None — empty strings and garbage never crash."""
+    if value in (None, ''):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_dt(value):
+    """Parse an ISO datetime string, returning None instead of raising."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
 
 
 @app.route('/api/jobs', methods=['POST'])
@@ -421,17 +450,27 @@ def get_jobs():
 @owner_required
 def add_job():
     try:
-        data = request.json
+        data  = request.json or {}
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'error': 'Job title is required.'}), 400
+        start_time = _parse_dt(data.get('start'))
+        end_time   = _parse_dt(data.get('end'))
+        if not start_time or not end_time:
+            return jsonify({'error': 'Valid start and end times are required.'}), 400
+        if end_time <= start_time:
+            return jsonify({'error': 'End time must be after start time.'}), 400
+
         job = Job(
             company_id    = current_user.company_id,
-            title         = data['title'],
+            title         = title,
             platform      = data.get('platform', 'manual'),
             location      = data.get('location', ''),
-            start_time    = datetime.fromisoformat(data['start']),
-            end_time      = datetime.fromisoformat(data['end']),
+            start_time    = start_time,
+            end_time      = end_time,
             tech_assigned = data.get('tech', ''),
-            tech_pay      = data.get('tech_pay'),
-            job_pay       = data.get('job_pay'),
+            tech_pay      = _to_float(data.get('tech_pay')),
+            job_pay       = _to_float(data.get('job_pay')),
             notes          = data.get('notes', ''),
             client_name    = data.get('client_name', ''),
             client_company = data.get('client_company', ''),
@@ -446,10 +485,25 @@ def add_job():
         except Exception as ce:
             app.logger.error(f'Conflict detection failed: {ce}')
 
-        # Notify assigned employee by email
+        # Notify assigned employee by email.
+        # The job is already committed — a notification failure must never
+        # bubble up as a 500, or the UI reports an error for a saved job.
+        try:
+            _notify_assigned_employee(job)
+        except Exception as ne:
+            app.logger.error(f'Employee notification failed: {ne}')
+
+        return jsonify({'success': True, 'id': job.id})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f'add_job error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+def _notify_assigned_employee(job):
         if job.tech_assigned:
             emp = User.query.filter_by(
-                company_id=current_user.company_id,
+                company_id=job.company_id,
                 name=job.tech_assigned,
                 role='employee'
             ).first()
@@ -473,10 +527,66 @@ def add_job():
                 </div>"""
                 send_email(emp.email, f'New Job: {job.title}', html)
 
+
+@app.route('/api/jobs/<int:job_id>', methods=['PUT'])
+@login_required
+@owner_required
+def update_job(job_id):
+    job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    try:
+        data = request.json or {}
+
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'error': 'Job title is required.'}), 400
+        start_time = _parse_dt(data.get('start'))
+        end_time   = _parse_dt(data.get('end'))
+        if not start_time or not end_time:
+            return jsonify({'error': 'Valid start and end times are required.'}), 400
+        if end_time <= start_time:
+            return jsonify({'error': 'End time must be after start time.'}), 400
+
+        old_tech     = job.tech_assigned or ''
+        old_location = job.location or ''
+
+        job.title          = title
+        job.platform       = data.get('platform', job.platform)
+        job.location       = data.get('location', '')
+        job.start_time     = start_time
+        job.end_time       = end_time
+        job.tech_assigned  = data.get('tech', '')
+        job.tech_pay       = _to_float(data.get('tech_pay'))
+        job.job_pay        = _to_float(data.get('job_pay'))
+        job.notes          = data.get('notes', '')
+        job.client_name    = data.get('client_name', '')
+        job.client_company = data.get('client_company', '')
+        job.client_email   = data.get('client_email', '')
+
+        # Reassignment means the new employee must confirm fresh
+        if (job.tech_assigned or '') != old_tech:
+            job.tech_confirmed = False
+            job.confirmed_at   = None
+
+        if (job.location or '') != old_location:
+            job.job_lat, job.job_lng = _geocode_address(job.location) if job.location else (None, None)
+
+        db.session.commit()
+
+        try:
+            detect_and_save_conflicts(current_user.company_id)
+        except Exception as ce:
+            app.logger.error(f'Conflict detection failed: {ce}')
+
+        if job.tech_assigned and (job.tech_assigned or '') != old_tech:
+            try:
+                _notify_assigned_employee(job)
+            except Exception as ne:
+                app.logger.error(f'Employee notification failed: {ne}')
+
         return jsonify({'success': True, 'id': job.id})
     except Exception as e:
         db.session.rollback()
-        app.logger.error(f'add_job error: {e}')
+        app.logger.error(f'update_job error: {e}')
         return jsonify({'error': str(e)}), 500
 
 
@@ -621,8 +731,13 @@ def employee_jobs_api():
 # ─────────────────────────────────────────
 
 def _employee_job(job_id):
-    """Get a job that belongs to the current employee's company."""
-    return Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    """Get a job the current user may act on. Employees can only touch jobs
+    assigned to them — without this, any employee could confirm or clock in
+    to a teammate's job."""
+    query = Job.query.filter_by(id=job_id, company_id=current_user.company_id)
+    if current_user.role != 'owner':
+        query = query.filter_by(tech_assigned=current_user.name)
+    return query.first_or_404()
 
 def _notify_owner(job, subject, message):
     owner = User.query.filter_by(company_id=job.company_id, role='owner').first()
@@ -1180,7 +1295,7 @@ def upload_receipt():
         job_id      = request.form.get('job_id') or None,
         filename    = safe_name,
         category    = request.form.get('category', 'Other'),
-        amount      = float(request.form.get('amount', 0) or 0),
+        amount      = _to_float(request.form.get('amount')) or 0,
         vendor      = request.form.get('vendor', ''),
         description = request.form.get('description', ''),
         uploaded_by = current_user.name,
@@ -1205,6 +1320,9 @@ def delete_receipt(receipt_id):
 @app.route('/uploads/receipts/<path:filename>')
 @login_required
 def serve_receipt(filename):
+    # Receipts must belong to the requester's company — without this check any
+    # logged-in user who learns a filename can read another company's receipts.
+    Receipt.query.filter_by(filename=filename, company_id=current_user.company_id).first_or_404()
     return send_from_directory(RECEIPT_UPLOAD_FOLDER, filename)
 
 
@@ -1376,7 +1494,14 @@ def sync_platform():
     })
 
 def detect_conflicts(company_id):
-    jobs = Job.query.filter_by(company_id=company_id).order_by(Job.start_time).all()
+    # Only upcoming, unfinished jobs can meaningfully conflict — completed and
+    # long-past jobs would otherwise pile up as permanent false alarms (and
+    # make this O(n²) scan slower every month).
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(days=1)
+    jobs = (Job.query.filter_by(company_id=company_id)
+            .filter(Job.status != 'complete', Job.end_time >= cutoff)
+            .order_by(Job.start_time).all())
     conflicts = []
     for i in range(len(jobs)):
         for j in range(i + 1, len(jobs)):
