@@ -9,7 +9,10 @@ import os
 import smtplib
 import uuid
 import stripe
-import storage
+try:
+    from backend import storage   # Railway: gunicorn backend.app:app
+except ImportError:
+    import storage                # local: run from inside backend/
 
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PRICE_ID      = os.environ.get('STRIPE_PRICE_ID', '')
