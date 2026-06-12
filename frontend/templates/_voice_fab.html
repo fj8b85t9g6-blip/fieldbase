@@ -133,7 +133,7 @@
 
       <div class="vfab-fg">
         <label>Transcript</label>
-        <div class="vfab-transcript ph" id="vfab-transcript" contenteditable="true" spellcheck="false">Your words will appear here...</div>
+        <div class="vfab-transcript ph" id="vfab-transcript" contenteditable="true" spellcheck="false">Your words will appear here — or tap to type directly...</div>
       </div>
       <div class="vfab-actions">
         <button class="vfab-primary" id="vfab-extract-btn" onclick="vfabExtract()">Extract Job Details</button>
@@ -217,7 +217,7 @@
     window.vfabOpen = function() {
         _final = '';
         const box = document.getElementById('vfab-transcript');
-        box.textContent = 'Your words will appear here...';
+        box.textContent = 'Your words will appear here — or tap to type directly...';
         box.classList.add('ph');
         _setMic(false);
         vfabShowStep('record');
@@ -258,8 +258,16 @@
             box.textContent = (_final + interim).trim();
         };
         _rec.onerror = function(e) {
-            if (e.error !== 'no-speech') alert('Mic error: ' + e.error);
             _recording = false; _setMic(false);
+            if (e.error === 'no-speech') return;
+            // network/not-allowed/etc — let user type instead
+            document.getElementById('vfab-mic-status').textContent = 'Speech unavailable — type your note below';
+            const box = document.getElementById('vfab-transcript');
+            if (box.classList.contains('ph')) {
+                box.textContent = '';
+                box.classList.remove('ph');
+                box.focus();
+            }
         };
         _rec.onend = function() {
             if (_recording) { try { _rec.start(); } catch(_) {} }
@@ -293,7 +301,7 @@
 
     window.vfabExtract = async function() {
         const transcript = document.getElementById('vfab-transcript').textContent.trim();
-        if (!transcript || transcript === 'Your words will appear here...') {
+        if (!transcript || transcript.startsWith('Your words will appear here')) {
             alert('Record a voice note first.'); return;
         }
         if (_recording) _stopRec();
