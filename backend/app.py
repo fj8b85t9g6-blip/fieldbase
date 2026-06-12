@@ -1118,6 +1118,9 @@ def reports():
 @login_required
 def work_log():
     if current_user.role == 'owner':
+        company = Company.query.get(current_user.company_id)
+        if company and not _has_active_access(company):
+            return redirect(url_for('billing'))
         employees = User.query.filter_by(company_id=current_user.company_id, role='employee').order_by(User.name).all()
         completed = Job.query.filter_by(company_id=current_user.company_id, status='complete').order_by(Job.completed_at.desc()).all()
         return render_template('work_log.html', employees=employees, jobs=completed, viewer='owner')
@@ -1349,6 +1352,7 @@ def tech_standards():
 
 @app.route('/api/tech-standards/pdf')
 @login_required
+@owner_required
 def tech_standards_pdf():
     std = TechStandard.query.filter_by(company_id=current_user.company_id).first()
     if not std:
@@ -1563,6 +1567,7 @@ def create_checkout():
         payment_method_types=['card'],
         mode='subscription',
         line_items=[{'price': STRIPE_PRICE_ID, 'quantity': 1}],
+        allow_promotion_codes=True,
         success_url=request.host_url + 'billing/success',
         cancel_url=request.host_url + 'billing',
     )
