@@ -93,7 +93,7 @@
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
         <button class="sync-btn" id="sync-btn" onclick="syncPlatforms()">⟳ Sync</button>
-        <button class="add-btn" onclick="document.getElementById('add-modal').classList.add('show')">+ Add Job</button>
+        <button class="add-btn" onclick="openAddModal()">+ Add Job</button>
     </div>
 </header>
 
@@ -143,15 +143,16 @@
         </div>
         <div class="modal-actions">
             <button class="btn-cancel" onclick="closeJobModal()">Close</button>
-            <button class="btn-primary" style="background:#dc2626;" onclick="deleteJob()">Delete Job</button>
+            <button class="btn-primary" onclick="editJob()">Edit Job</button>
+            <button class="btn-primary" style="background:#dc2626;" onclick="deleteJob()">Delete</button>
         </div>
     </div>
 </div>
 
-<!-- Add Job Modal -->
+<!-- Add / Edit Job Modal -->
 <div id="add-modal" class="modal-overlay">
     <div class="modal">
-        <h2>Add Job</h2>
+        <h2 id="add-modal-title">Add Job</h2>
         <div class="form-group">
             <label>Job Title</label>
             <input id="job-title" type="text" placeholder="e.g. Network Equipment Install">
@@ -173,7 +174,19 @@
         </div>
         <div class="form-group">
             <label>Assigned Employee</label>
-            <input id="job-tech" type="text" placeholder="Employee name">
+            <select id="job-tech">
+                <option value="">— Unassigned —</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Employee Pay ($)</label>
+                <input id="job-tech-pay" type="number" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label>Job Value ($)</label>
+                <input id="job-job-pay" type="number" step="0.01" min="0" placeholder="0.00">
+            </div>
         </div>
         <div class="form-row">
             <div class="form-group">
@@ -200,7 +213,7 @@
             <textarea id="job-notes" rows="2" placeholder="Optional notes"></textarea>
         </div>
         <div class="modal-actions">
-            <button class="btn-primary" onclick="addJob()">Save Job</button>
+            <button class="btn-primary" id="job-save-btn" onclick="saveJob()">Save Job</button>
             <button class="btn-cancel" onclick="document.getElementById('add-modal').classList.remove('show')">Cancel</button>
         </div>
     </div>
@@ -208,30 +221,56 @@
 
 <script>
     let calendar;
+    window.calendar = null;
 
     document.addEventListener('DOMContentLoaded', async function() {
         const calEl = document.getElementById('calendar');
+        const isPhone = window.matchMedia('(max-width: 720px)').matches;
         calendar = new FullCalendar.Calendar(calEl, {
-            initialView: 'dayGridMonth',
+            initialView: isPhone ? 'listWeek' : 'dayGridMonth',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                right: isPhone ? 'listWeek,dayGridMonth' : 'dayGridMonth,timeGridWeek,timeGridDay'
             },
             events: '/api/jobs',
             height: 'auto',
             eventClick: function(info) {
+                info.jsEvent.preventDefault();
                 openJobModal(info.event);
             }
         });
         calendar.render();
+        window.calendar = calendar;
+        loadEmployees();
         await loadConflicts();
     });
 
     let activeJobId = null;
+    let activeEvent = null;
+    let editingJobId = null;
+
+    async function loadEmployees() {
+        try {
+            const res = await fetch('/api/team/members');
+            if (!res.ok) return;
+            const employees = await res.json();
+            const sel = document.getElementById('job-tech');
+            const current = sel.value;
+            sel.innerHTML = '<option value="">— Unassigned —</option>';
+            employees.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.name;
+                opt.textContent = e.name;
+                sel.appendChild(opt);
+            });
+            sel.value = current;
+        } catch(_) {}
+    }
 
     function openJobModal(event) {
         activeJobId = event.id;
+        activeEvent = event;
         const p = event.extendedProps;
         const fmt = d => d ? d.toLocaleString([], {weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
         document.getElementById('modal-title').textContent    = event.title;
@@ -276,12 +315,53 @@
         }
     }
 
-    async function addJob() {
+    function openAddModal() {
+        editingJobId = null;
+        document.getElementById('add-modal-title').textContent = 'Add Job';
+        ['job-title','job-location','job-tech-pay','job-job-pay','job-start','job-end',
+         'job-client-name','job-client-email','job-notes'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('job-platform').value = 'workmarket';
+        document.getElementById('job-tech').value = '';
+        document.getElementById('add-modal').classList.add('show');
+    }
+
+    // datetime-local inputs need "YYYY-MM-DDTHH:MM" in local time
+    function toLocalInput(d) {
+        if (!d) return '';
+        const pad = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function editJob() {
+        if (!activeEvent) return;
+        const p = activeEvent.extendedProps;
+        editingJobId = activeJobId;
+        document.getElementById('add-modal-title').textContent = 'Edit Job';
+        document.getElementById('job-title').value        = activeEvent.title || '';
+        document.getElementById('job-platform').value     = p.platform || 'manual';
+        document.getElementById('job-location').value     = p.location || '';
+        document.getElementById('job-tech').value         = p.tech || '';
+        document.getElementById('job-tech-pay').value     = p.tech_pay ?? '';
+        document.getElementById('job-job-pay').value      = p.job_pay ?? '';
+        document.getElementById('job-start').value        = toLocalInput(activeEvent.start);
+        document.getElementById('job-end').value          = toLocalInput(activeEvent.end || activeEvent.start);
+        document.getElementById('job-client-name').value  = p.client_name || '';
+        document.getElementById('job-client-email').value = p.client_email || '';
+        document.getElementById('job-notes').value        = p.notes || '';
+        closeJobModal();
+        document.getElementById('add-modal').classList.add('show');
+    }
+
+    async function saveJob() {
         const data = {
             title:        document.getElementById('job-title').value,
             platform:     document.getElementById('job-platform').value,
             location:     document.getElementById('job-location').value,
             tech:         document.getElementById('job-tech').value,
+            tech_pay:     document.getElementById('job-tech-pay').value,
+            job_pay:      document.getElementById('job-job-pay').value,
             start:        document.getElementById('job-start').value,
             end:          document.getElementById('job-end').value,
             notes:        document.getElementById('job-notes').value,
@@ -289,10 +369,60 @@
             client_email: document.getElementById('job-client-email').value,
         };
         if (!data.title || !data.start || !data.end) { alert('Title, start, and end are required.'); return; }
-        await fetch('/api/jobs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
-        document.getElementById('add-modal').classList.remove('show');
-        calendar.refetchEvents();
-        await loadConflicts();
+
+        const btn = document.getElementById('job-save-btn');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        try {
+            const url    = editingJobId ? `/api/jobs/${editingJobId}` : '/api/jobs';
+            const method = editingJobId ? 'PUT' : 'POST';
+            const res    = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+            const body   = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                showSyncToast(body.error || `Save failed (${res.status}). Please try again.`, true);
+                return;
+            }
+            document.getElementById('add-modal').classList.remove('show');
+            showSyncToast(editingJobId ? 'Job updated' : 'Job added', false);
+            editingJobId = null;
+            calendar.refetchEvents();
+            await loadConflicts();
+        } catch(err) {
+            showSyncToast('Connection error: ' + err.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Save Job';
+        }
+    }
+
+    async function syncPlatforms() {
+        const btn = document.getElementById('sync-btn');
+        btn.disabled = true; btn.textContent = '⟳ Syncing...';
+        try {
+            const res  = await fetch('/api/sync-platform', { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                showSyncToast(data.error || 'Sync failed. Check your API keys in Settings.', true);
+                return;
+            }
+            const errs = (data.synced && data.synced.errors) || [];
+            if (errs.length) {
+                showSyncToast(data.message + ' — ' + errs[0], true);
+            } else {
+                showSyncToast(data.message || 'Sync complete', false);
+            }
+            calendar.refetchEvents();
+            await loadConflicts();
+        } catch(err) {
+            showSyncToast('Connection error: ' + err.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = '⟳ Sync';
+        }
+    }
+
+    function showSyncToast(msg, isError) {
+        const t = document.getElementById('sync-toast');
+        t.textContent = msg;
+        t.className = 'sync-toast show' + (isError ? ' error' : '');
+        setTimeout(() => { t.className = 'sync-toast'; }, 4000);
     }
 
 

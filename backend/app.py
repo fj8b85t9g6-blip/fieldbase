@@ -1209,6 +1209,8 @@ Extract job details from this voice transcript. Return ONLY a valid JSON object 
 - "client_company": the company or organization the client works for or represents (empty string if not mentioned)
 - "client_email": client's email address (empty string if not mentioned)
 - "assigned_employee": full name of the employee/tech to assign this job to — extracted from phrases like "assign to Glenn", "this is for Glenn Dinkins", "send Glenn" (empty string if not mentioned)
+- "tech_pay": number — what the employee gets paid, from phrases like "pays 150", "tech gets 200" (empty string if not mentioned)
+- "job_pay": number — total job value / what the client is billed, from phrases like "billing 400", "job is worth 500" (empty string if not mentioned; if only one dollar amount is mentioned without context, put it in tech_pay)
 - "start": start datetime as YYYY-MM-DDTHH:MM (empty string if not mentioned)
 - "end": end datetime as YYYY-MM-DDTHH:MM (empty string if not mentioned)
 - "notes": scope of work, tools required, and any other relevant details (empty string if none)
