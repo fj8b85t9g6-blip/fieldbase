@@ -252,6 +252,14 @@ def inject_trial_info():
             return {'trial_days_left': days_left}
     return {'trial_days_left': None}
 
+@app.route('/sw.js')
+def service_worker():
+    # Served from the root so the service worker's scope covers the whole app
+    # (a worker served from /static/ could only control /static/).
+    return send_from_directory(os.path.join(_ROOT, 'frontend', 'static'), 'sw.js',
+                               mimetype='application/javascript')
+
+
 # ─────────────────────────────────────────
 # AUTH ROUTES
 # ─────────────────────────────────────────
