@@ -1635,6 +1635,14 @@ with app.app_context():
     db.create_all()
     with db.engine.connect() as conn:
         for col, ddl in [
+            ('tech_confirmed',   'ALTER TABLE jobs ADD COLUMN tech_confirmed BOOLEAN DEFAULT FALSE'),
+            ('confirmed_at',     'ALTER TABLE jobs ADD COLUMN confirmed_at TIMESTAMP'),
+            ('clock_in_at',      'ALTER TABLE jobs ADD COLUMN clock_in_at TIMESTAMP'),
+            ('clock_out_at',     'ALTER TABLE jobs ADD COLUMN clock_out_at TIMESTAMP'),
+            ('completed_at',     'ALTER TABLE jobs ADD COLUMN completed_at TIMESTAMP'),
+            ('employee_notes',   'ALTER TABLE jobs ADD COLUMN employee_notes TEXT'),
+            ('invoice_sent',     'ALTER TABLE jobs ADD COLUMN invoice_sent BOOLEAN DEFAULT FALSE'),
+            ('invoice_sent_at',  'ALTER TABLE jobs ADD COLUMN invoice_sent_at TIMESTAMP'),
             ('payment_received', 'ALTER TABLE jobs ADD COLUMN payment_received BOOLEAN DEFAULT FALSE'),
             ('amount_paid',      'ALTER TABLE jobs ADD COLUMN amount_paid FLOAT'),
             ('hourly_rate',      'ALTER TABLE users ADD COLUMN hourly_rate FLOAT'),
