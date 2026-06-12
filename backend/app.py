@@ -9,6 +9,7 @@ import os
 import smtplib
 import uuid
 import stripe
+import storage
 
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PRICE_ID      = os.environ.get('STRIPE_PRICE_ID', '')
@@ -19,6 +20,7 @@ from email.mime.text import MIMEText
 
 _BASE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_BASE)
+storage.init(_ROOT)
 
 app = Flask(__name__,
     template_folder=os.path.join(_ROOT, 'frontend', 'templates'),
@@ -607,12 +609,10 @@ def delete_job(job_id):
         (Conflict.job_a_id == job_id) | (Conflict.job_b_id == job_id)
     ).delete(synchronize_session=False)
     for doc in JobDocument.query.filter_by(job_id=job_id).all():
-        try: os.remove(os.path.join(DOC_FOLDER, doc.filename))
-        except FileNotFoundError: pass
+        storage.delete('docs', doc.filename)
         db.session.delete(doc)
     for photo in JobPhoto.query.filter_by(job_id=job_id).all():
-        try: os.remove(os.path.join(UPLOAD_FOLDER, photo.filename))
-        except FileNotFoundError: pass
+        storage.delete('photos', photo.filename)
         db.session.delete(photo)
     db.session.delete(job)
     db.session.commit()
@@ -904,8 +904,6 @@ def send_email(to_addr, subject, html_body):
 # PHOTO ROUTES
 # ─────────────────────────────────────────
 
-UPLOAD_FOLDER = os.path.join(_ROOT, 'frontend', 'static', 'uploads', 'photos')
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
 
 def allowed_file(filename):
@@ -922,7 +920,7 @@ def upload_photo(job_id):
         return jsonify({'error': 'Invalid file type'}), 400
     ext      = f.filename.rsplit('.', 1)[1].lower()
     filename = f'{uuid.uuid4().hex}.{ext}'
-    f.save(os.path.join(UPLOAD_FOLDER, filename))
+    storage.upload(f, 'photos', filename)
     photo = JobPhoto(job_id=job_id, company_id=current_user.company_id,
                      filename=filename, uploaded_by=current_user.name)
     db.session.add(photo)
@@ -937,7 +935,7 @@ def get_photos(job_id):
     photos = JobPhoto.query.filter_by(job_id=job_id).order_by(JobPhoto.uploaded_at).all()
     return jsonify([{
         'id':          p.id,
-        'url':         f'/static/uploads/photos/{p.filename}',
+        'url':         storage.url('photos', p.filename),
         'uploaded_by': p.uploaded_by,
         'uploaded_at': p.uploaded_at.strftime('%b %d %I:%M %p')
     } for p in photos])
@@ -948,10 +946,7 @@ def get_photos(job_id):
 @owner_required
 def delete_photo(photo_id):
     photo = JobPhoto.query.filter_by(id=photo_id, company_id=current_user.company_id).first_or_404()
-    try:
-        os.remove(os.path.join(UPLOAD_FOLDER, photo.filename))
-    except FileNotFoundError:
-        pass
+    storage.delete('photos', photo.filename)
     db.session.delete(photo)
     db.session.commit()
     return jsonify({'success': True})
@@ -961,8 +956,6 @@ def delete_photo(photo_id):
 # DOCUMENT ROUTES
 # ─────────────────────────────────────────
 
-DOC_FOLDER = os.path.join(_ROOT, 'frontend', 'static', 'uploads', 'docs')
-os.makedirs(DOC_FOLDER, exist_ok=True)
 ALLOWED_DOC_EXT = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'txt', 'csv'}
 
 def allowed_doc(filename):
@@ -982,14 +975,14 @@ def upload_document(job_id):
     original_name = f.filename
     ext      = f.filename.rsplit('.', 1)[1].lower()
     filename = f'{uuid.uuid4().hex}.{ext}'
-    f.save(os.path.join(DOC_FOLDER, filename))
+    storage.upload(f, 'docs', filename)
     doc = JobDocument(job_id=job_id, company_id=current_user.company_id,
                       filename=filename, original_name=original_name,
                       uploaded_by=current_user.name)
     db.session.add(doc)
     db.session.commit()
     return jsonify({'success': True, 'id': doc.id, 'name': original_name,
-                    'url': f'/static/uploads/docs/{filename}'})
+                    'url': storage.url('docs', filename)})
 
 
 @app.route('/api/jobs/<int:job_id>/documents', methods=['GET'])
@@ -1000,7 +993,7 @@ def get_documents(job_id):
     return jsonify([{
         'id':          d.id,
         'name':        d.original_name or d.filename,
-        'url':         f'/static/uploads/docs/{d.filename}',
+        'url':         storage.url('docs', d.filename),
         'uploaded_by': d.uploaded_by,
         'uploaded_at': d.uploaded_at.strftime('%b %d, %Y')
     } for d in docs])
@@ -1011,10 +1004,7 @@ def get_documents(job_id):
 @owner_required
 def delete_document(doc_id):
     doc = JobDocument.query.filter_by(id=doc_id, company_id=current_user.company_id).first_or_404()
-    try:
-        os.remove(os.path.join(DOC_FOLDER, doc.filename))
-    except FileNotFoundError:
-        pass
+    storage.delete('docs', doc.filename)
     db.session.delete(doc)
     db.session.commit()
     return jsonify({'success': True})
@@ -1269,9 +1259,6 @@ def platform_color(platform):
 # RECEIPT LOGGER
 # ─────────────────────────────────────────
 
-RECEIPT_UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'uploads', 'receipts')
-os.makedirs(RECEIPT_UPLOAD_FOLDER, exist_ok=True)
-
 RECEIPT_CATEGORIES = ['Parts', 'Tools', 'Travel', 'Fuel', 'Food', 'Supplies', 'Subcontractor', 'Other']
 
 @app.route('/receipts')
@@ -1299,7 +1286,7 @@ def upload_receipt():
     if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.heic']:
         return jsonify({'error': 'Invalid file type'}), 400
     safe_name = f"{uuid.uuid4().hex}{ext}"
-    file.save(os.path.join(RECEIPT_UPLOAD_FOLDER, safe_name))
+    storage.upload(file, 'receipts', safe_name)
     r = Receipt(
         company_id  = current_user.company_id,
         job_id      = request.form.get('job_id') or None,
@@ -1319,10 +1306,7 @@ def upload_receipt():
 @owner_required
 def delete_receipt(receipt_id):
     r = Receipt.query.filter_by(id=receipt_id, company_id=current_user.company_id).first_or_404()
-    try:
-        os.remove(os.path.join(RECEIPT_UPLOAD_FOLDER, r.filename))
-    except Exception:
-        pass
+    storage.delete('receipts', r.filename)
     db.session.delete(r)
     db.session.commit()
     return jsonify({'ok': True})
@@ -1330,10 +1314,10 @@ def delete_receipt(receipt_id):
 @app.route('/uploads/receipts/<path:filename>')
 @login_required
 def serve_receipt(filename):
-    # Receipts must belong to the requester's company — without this check any
-    # logged-in user who learns a filename can read another company's receipts.
     Receipt.query.filter_by(filename=filename, company_id=current_user.company_id).first_or_404()
-    return send_from_directory(RECEIPT_UPLOAD_FOLDER, filename)
+    if storage.USE_R2:
+        return redirect(storage.url('receipts', filename))
+    return send_from_directory(os.path.join(_ROOT, 'uploads', 'receipts'), filename)
 
 
 # ─────────────────────────────────────────
