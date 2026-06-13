@@ -358,13 +358,14 @@ def index():
     jobs        = Job.query.filter_by(company_id=current_user.company_id).order_by(Job.start_time).all()
     conflicts   = detect_conflicts(current_user.company_id)
     today       = [j for j in jobs if j.start_time.date() == date.today()]
-    overdue     = [j for j in jobs if not j.invoice_sent and j.status == 'complete']
-    unconfirmed = [j for j in jobs if j.tech_assigned and not j.tech_confirmed and j.status == 'scheduled']
-    active      = [j for j in jobs if j.status == 'in_progress']
+    overdue      = [j for j in jobs if not j.invoice_sent and j.status == 'complete']
+    unconfirmed  = [j for j in jobs if j.tech_assigned and not j.tech_confirmed and j.status == 'scheduled']
+    active       = [j for j in jobs if j.status == 'in_progress']
+    needs_review = [j for j in jobs if j.status == 'awaiting_review']
     return render_template('index.html',
         jobs=jobs, conflicts=conflicts, overdue=overdue,
         today=today, unconfirmed=unconfirmed, active=active,
-        company=current_user.company)
+        needs_review=needs_review, company=current_user.company)
 
 
 @app.route('/calendar')
@@ -578,7 +579,7 @@ def update_job(job_id):
 
         new_status = data.get('status')
         if new_status and new_status != job.status:
-            allowed_statuses = {'scheduled', 'on_the_way', 'delayed', 'in_progress', 'paused', 'complete'}
+            allowed_statuses = {'scheduled', 'on_the_way', 'delayed', 'in_progress', 'paused', 'complete', 'awaiting_review'}
             if new_status not in allowed_statuses:
                 return jsonify({'error': 'Invalid status.'}), 400
             job.status = new_status
@@ -732,7 +733,7 @@ def employee_jobs_api():
         company_id=current_user.company_id,
         tech_assigned=current_user.name
     ).all()
-    color_map = {'scheduled': '#f59e0b', 'confirmed': '#3b82f6', 'in_progress': '#8b5cf6', 'complete': '#22c55e'}
+    color_map = {'scheduled': '#f59e0b', 'confirmed': '#3b82f6', 'in_progress': '#8b5cf6', 'complete': '#22c55e', 'awaiting_review': '#f97316'}
     return jsonify([{
         'id':    j.id,
         'title': j.title,
@@ -918,12 +919,23 @@ def _send_auto_invoice(job):
 @login_required
 def complete_job(job_id):
     job = _employee_job(job_id)
-    job.status       = 'complete'
-    job.completed_at = datetime.utcnow()
+    job.status = 'awaiting_review'
     if not job.clock_out_at:
         job.clock_out_at = datetime.utcnow()
     db.session.commit()
-    _notify_owner(job, f'Job Completed — {job.title}', f'{current_user.name} marked <strong>{job.title}</strong> as complete.')
+    _notify_owner(job, f'Work Done — {job.title}', f'{current_user.name} finished <strong>{job.title}</strong>. Review and close when ready.')
+    return jsonify({'success': True})
+
+
+@app.route('/api/jobs/<int:job_id>/close-and-invoice', methods=['POST'])
+@login_required
+@owner_required
+def close_and_invoice(job_id):
+    job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    job.status = 'complete'
+    if not job.completed_at:
+        job.completed_at = datetime.utcnow()
+    db.session.commit()
     _send_auto_invoice(job)
     return jsonify({'success': True})
 

@@ -64,7 +64,8 @@
         .dot-delayed    { background: #dc2626; }
         .dot-in_progress{ background: #8b5cf6; }
         .dot-paused     { background: #f59e0b; }
-        .dot-complete   { background: #22c55e; }
+        .dot-complete        { background: #22c55e; }
+        .dot-awaiting_review { background: #f97316; }
         .dot-unconfirmed{ background: #f59e0b; }
         .job-name { font-size: 14px; font-weight: 600; color: #1f2937; }
         .job-time { font-size: 12px; color: #9ca3af; margin-top: 2px; }
@@ -192,6 +193,11 @@
             <div class="value">{{ unconfirmed|length }}</div>
             <div class="sub">Awaiting employee response</div>
         </div>
+        <div class="stat-card {% if needs_review %}warn{% endif %}">
+            <div class="label">Needs Review</div>
+            <div class="value">{{ needs_review|length }}</div>
+            <div class="sub">Ready to close & invoice</div>
+        </div>
         <div class="stat-card {% if conflicts %}alert{% endif %}">
             <div class="label">Conflicts</div>
             <div class="value">{{ conflicts|length }}</div>
@@ -252,6 +258,8 @@
                                 <span class="badge badge-purple">On Site</span>
                             {% elif job.status == 'paused' %}
                                 <span class="badge" style="background:#fef3c7;color:#b45309;">Paused</span>
+                            {% elif job.status == 'awaiting_review' %}
+                                <span class="badge" style="background:#ffedd5;color:#c2410c;">Needs Review</span>
                             {% elif job.status == 'complete' %}
                                 <span class="badge badge-green">Complete</span>
                             {% else %}
@@ -306,6 +314,12 @@
                     {% endif %}
 
                     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        {% if job.status == 'awaiting_review' %}
+                        <button onclick="closeAndInvoice({{ job.id }})"
+                          style="background:#f97316;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
+                          ✅ Close & Send Invoice
+                        </button>
+                        {% endif %}
                         <button onclick="emailInvoice({{ job.id }}, '{{ job.client_email or '' }}', '{{ job.client_name or '' }}')"
                           style="background:#1e3a5f;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">
                           📧 Email Invoice
@@ -370,6 +384,18 @@
     }
     setInterval(updateClock, 1000);
     updateClock();
+
+    async function closeAndInvoice(jobId) {
+        if (!confirm('Close this job and send the invoice to the client?')) return;
+        const res = await fetch(`/api/jobs/${jobId}/close-and-invoice`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            alert('Job closed and invoice sent.');
+            location.reload();
+        } else {
+            alert(data.error || 'Something went wrong.');
+        }
+    }
 
     async function emailInvoice(jobId, existingEmail, existingName) {
         const email = prompt('Client email address:', existingEmail);
