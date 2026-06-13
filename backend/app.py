@@ -94,10 +94,11 @@ class Job(db.Model):
     clock_out_at    = db.Column(db.DateTime)
     completed_at    = db.Column(db.DateTime)
     employee_notes  = db.Column(db.Text)
-    invoice_sent      = db.Column(db.Boolean, default=False)
-    invoice_sent_at   = db.Column(db.DateTime)
-    payment_received  = db.Column(db.Boolean, default=False)
-    amount_paid       = db.Column(db.Float)
+    invoice_sent         = db.Column(db.Boolean, default=False)
+    invoice_sent_at      = db.Column(db.DateTime)
+    payment_received     = db.Column(db.Boolean, default=False)
+    amount_paid          = db.Column(db.Float)
+    stripe_payment_link  = db.Column(db.String(500))
     notes             = db.Column(db.Text)
     client_name       = db.Column(db.String(200))
     client_company    = db.Column(db.String(200))
@@ -863,6 +864,56 @@ def clock_out(job_id):
     _notify_owner(job, f'Employee Clocked Out — {job.title}', f'{current_user.name} clocked out of <strong>{job.title}</strong> at {job.clock_out_at.strftime("%I:%M %p")}.')
     return jsonify({'success': True})
 
+def _send_auto_invoice(job):
+    """Create a Stripe Payment Link and email it to the client when a job completes."""
+    if not job.client_email or not job.job_pay:
+        return
+    try:
+        price = stripe.Price.create(
+            unit_amount=int(job.job_pay * 100),
+            currency='usd',
+            product_data={'name': job.title},
+        )
+        link = stripe.PaymentLink.create(
+            line_items=[{'price': price.id, 'quantity': 1}],
+            metadata={'job_id': str(job.id)},
+        )
+        job.stripe_payment_link = link.url
+        job.invoice_sent    = True
+        job.invoice_sent_at = datetime.utcnow()
+        db.session.commit()
+
+        owner = User.query.filter_by(company_id=job.company_id, role='owner').first()
+        company_name = owner.company.name if owner and owner.company else 'Your Service Provider'
+        owner_name   = owner.name if owner else ''
+        client_name  = job.client_name or 'Valued Client'
+        amount_str   = f"${job.job_pay:.2f}"
+
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+          <div style="background:#1e3a5f;padding:24px 32px;">
+            <h1 style="color:#fff;margin:0;font-size:22px;">{company_name}</h1>
+            <p style="color:#a8c4e0;margin:4px 0 0;font-size:13px;">Invoice — Job Complete</p>
+          </div>
+          <div style="padding:32px;">
+            <p style="color:#374151;">Dear {client_name},</p>
+            <p style="color:#374151;">The work on <strong>{job.title}</strong> has been completed. Please find your invoice below.</p>
+            <table style="width:100%;border-collapse:collapse;margin:24px 0;">
+              <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Job</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.title}</td></tr>
+              <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Date</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.start_time.strftime('%B %d, %Y')}</td></tr>
+              <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Location</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.location or 'N/A'}</td></tr>
+              <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Amount Due</td><td style="padding:10px 14px;font-size:18px;font-weight:700;color:#1e3a5f;">{amount_str}</td></tr>
+            </table>
+            <a href="{link.url}" style="display:inline-block;background:#1e3a5f;color:#fff;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;margin:8px 0 24px;">Pay Now — {amount_str}</a>
+            <p style="color:#6b7280;font-size:13px;">Click the button above to pay securely by card. Thank you for your business.</p>
+            <p style="color:#374151;margin-top:24px;">— {owner_name}<br>{company_name}</p>
+          </div>
+        </div>"""
+        send_email(job.client_email, f'Invoice — {job.title} ({amount_str})', html)
+    except Exception as e:
+        app.logger.error(f'Auto invoice failed for job {job.id}: {e}')
+
+
 @app.route('/api/jobs/<int:job_id>/complete', methods=['POST'])
 @login_required
 def complete_job(job_id):
@@ -873,6 +924,7 @@ def complete_job(job_id):
         job.clock_out_at = datetime.utcnow()
     db.session.commit()
     _notify_owner(job, f'Job Completed — {job.title}', f'{current_user.name} marked <strong>{job.title}</strong> as complete.')
+    _send_auto_invoice(job)
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/employee-notes', methods=['POST'])
@@ -1187,6 +1239,52 @@ def team_members():
         User.role.in_(['owner', 'employee'])
     ).order_by(User.name).all()
     return jsonify([{'name': e.name} for e in employees])
+
+
+# ─────────────────────────────────────────
+# IMAGE-TO-JOB (screenshot upload)
+# ─────────────────────────────────────────
+
+@app.route('/api/image-to-job', methods=['POST'])
+@login_required
+@owner_required
+def image_to_job():
+    import anthropic as _anthropic
+    import base64, json, re
+    file = request.files.get('image')
+    if not file:
+        return jsonify({'error': 'No image provided'}), 400
+    image_data = base64.standard_b64encode(file.read()).decode('utf-8')
+    media_type = file.content_type or 'image/jpeg'
+    if media_type not in ('image/jpeg', 'image/png', 'image/gif', 'image/webp'):
+        media_type = 'image/jpeg'
+    today = datetime.utcnow().strftime('%Y-%m-%d')
+    try:
+        ai = _anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+        msg = ai.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=1024,
+            messages=[{'role': 'user', 'content': [
+                {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': image_data}},
+                {'type': 'text', 'text': (
+                    f'Extract job details from this screenshot. Today is {today}. '
+                    'Return ONLY valid JSON (no extra text): '
+                    '{"title":"...","platform":"workmarket|fieldnation|direct|email|phone|manual",'
+                    '"location":"full address","client_name":"...","client_company":"...",'
+                    '"client_email":"...","assigned_employee":"first name",'
+                    '"start":"YYYY-MM-DDTHH:MM","end":"YYYY-MM-DDTHH:MM","notes":"..."} '
+                    'Use null for missing fields.'
+                )}
+            ]}]
+        )
+        text = msg.content[0].text.strip()
+        m = re.search(r'\{.*\}', text, re.DOTALL)
+        if not m:
+            return jsonify({'error': 'Could not read image content'}), 500
+        return jsonify(json.loads(m.group()))
+    except Exception as e:
+        app.logger.error(f'image_to_job error: {e}')
+        return jsonify({'error': str(e)}), 500
 
 
 # ─────────────────────────────────────────
@@ -1625,6 +1723,14 @@ def stripe_webhook():
         if company:
             company.subscription_status = 'canceled'
             db.session.commit()
+    elif event['type'] == 'checkout.session.completed':
+        job_id = obj.get('metadata', {}).get('job_id')
+        if job_id:
+            job = Job.query.get(int(job_id))
+            if job and not job.payment_received:
+                job.payment_received = True
+                job.amount_paid      = (obj.get('amount_total') or 0) / 100
+                db.session.commit()
     return jsonify({'status': 'ok'})
 
 
@@ -1657,6 +1763,7 @@ with app.app_context():
             ('job_lng',          'ALTER TABLE jobs ADD COLUMN job_lng FLOAT'),
         ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
         ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
+        ('stripe_payment_link',     'ALTER TABLE jobs ADD COLUMN stripe_payment_link VARCHAR(500)'),
         ('stripe_customer_id',     'ALTER TABLE companies ADD COLUMN stripe_customer_id VARCHAR(100)'),
         ('stripe_subscription_id', 'ALTER TABLE companies ADD COLUMN stripe_subscription_id VARCHAR(100)'),
         ('subscription_status',    'ALTER TABLE companies ADD COLUMN subscription_status VARCHAR(20)'),

@@ -89,6 +89,19 @@
 .vfab-toast.show { opacity: 1; }
 .vfab-toast.err  { background: #dc2626; }
 
+/* Mode tabs */
+.vfab-tabs { display: flex; gap: 0; border: 1.5px solid #d0d7e3; border-radius: 8px; overflow: hidden; margin-bottom: 18px; }
+.vfab-tab  { flex: 1; padding: 9px 4px; font-size: 13px; font-weight: 600; color: #5a6a7e; background: #f4f6f9; border: none; cursor: pointer; font-family: 'Segoe UI', sans-serif; transition: background 0.15s, color 0.15s; }
+.vfab-tab:first-child { border-right: 1.5px solid #d0d7e3; }
+.vfab-tab.active { background: #1e3a5f; color: #fff; }
+
+/* Screenshot upload */
+.vfab-upload-area { border: 2px dashed #d0d7e3; border-radius: 10px; padding: 32px 16px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; margin-bottom: 14px; }
+.vfab-upload-area:hover, .vfab-upload-area.drag { border-color: #1e3a5f; background: #f0f4f9; }
+.vfab-upload-area p { font-size: 14px; color: #5a6a7e; margin: 6px 0 0; font-family: 'Segoe UI', sans-serif; }
+.vfab-upload-area input[type=file] { display: none; }
+.vfab-img-preview { width: 100%; max-height: 180px; object-fit: contain; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 12px; display: none; }
+
 @media (max-width: 480px) {
     .vfab-btn  { bottom: 20px; right: 16px; width: 52px; height: 52px; }
     .vfab-modal { padding: 20px 16px; }
@@ -96,48 +109,70 @@
 }
 </style>
 
-<!-- Floating mic button -->
-<button class="vfab-btn" onclick="vfabOpen()" title="New Job from Voice">
-    <svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a1 1 0 0 1 1 1 6 6 0 0 0 12 0 1 1 0 1 1 2 0 8 8 0 0 1-7 7.93V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-1.07A8 8 0 0 1 4 12a1 1 0 0 1 1-1z"/></svg>
+<!-- Floating action button -->
+<button class="vfab-btn" onclick="vfabOpen()" title="New Job">
+    <svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
 </button>
 
 <!-- Modal -->
 <div id="vfab-overlay" class="vfab-overlay">
   <div class="vfab-modal">
 
-    <!-- Step 1: Record -->
+    <!-- Step 1: Record / Upload -->
     <div id="vfab-step-record">
-      <h2>New Job from Voice</h2>
-      <p>Tap the mic and describe the job. Try to cover everything below.</p>
+      <h2>New Job</h2>
 
-      <div class="vfab-prompt">
-        <div class="vfab-prompt-ex">"Got a call from Carlos Rivera at Apex Facilities — HVAC unit replacement at 831 Lakeview Drive, Naperville. Next Tuesday at 7 AM, about 4 hours. Assign to James. Tools needed: refrigerant kit and pipe cutter."</div>
-        <div class="vfab-chips">
-          <span class="vfab-chip">Contact name</span>
-          <span class="vfab-chip">Their company</span>
-          <span class="vfab-chip">Job type</span>
-          <span class="vfab-chip">Address</span>
-          <span class="vfab-chip">Date &amp; time</span>
-          <span class="vfab-chip">Duration</span>
-          <span class="vfab-chip">Assign to who</span>
-          <span class="vfab-chip">Tools needed</span>
+      <!-- Mode tabs -->
+      <div class="vfab-tabs">
+        <button class="vfab-tab active" id="vfab-tab-voice" onclick="vfabSetMode('voice')">🎙️ Voice</button>
+        <button class="vfab-tab" id="vfab-tab-image" onclick="vfabSetMode('image')">📷 Screenshot</button>
+      </div>
+
+      <!-- VOICE MODE -->
+      <div id="vfab-mode-voice">
+        <p>Tap the mic and describe the job out loud.</p>
+        <div class="vfab-prompt">
+          <div class="vfab-prompt-ex">"Got a call from Carlos Rivera at Apex Facilities — HVAC unit replacement at 831 Lakeview Drive, Naperville. Next Tuesday at 7 AM, about 4 hours. Assign to James. Tools needed: refrigerant kit and pipe cutter."</div>
+          <div class="vfab-chips">
+            <span class="vfab-chip">Contact name</span>
+            <span class="vfab-chip">Their company</span>
+            <span class="vfab-chip">Job type</span>
+            <span class="vfab-chip">Address</span>
+            <span class="vfab-chip">Date &amp; time</span>
+            <span class="vfab-chip">Duration</span>
+            <span class="vfab-chip">Assign to who</span>
+            <span class="vfab-chip">Tools needed</span>
+          </div>
+        </div>
+        <div class="vfab-mic-wrap">
+          <button class="vfab-mic-btn" id="vfab-mic-btn" onclick="vfabToggleRec()">
+            <svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a1 1 0 0 1 1 1 6 6 0 0 0 12 0 1 1 0 1 1 2 0 8 8 0 0 1-7 7.93V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-1.07A8 8 0 0 1 4 12a1 1 0 0 1 1-1z"/></svg>
+          </button>
+          <span class="vfab-mic-status" id="vfab-mic-status">Tap to start recording</span>
+        </div>
+        <div class="vfab-fg">
+          <label>Transcript</label>
+          <div class="vfab-transcript ph" id="vfab-transcript" contenteditable="true" spellcheck="false">Your words will appear here — or tap to type directly...</div>
+        </div>
+        <div class="vfab-actions">
+          <button class="vfab-primary" id="vfab-extract-btn" onclick="vfabExtract()">Extract Job Details</button>
+          <button class="vfab-cancel" onclick="vfabClose()">Cancel</button>
         </div>
       </div>
 
-      <div class="vfab-mic-wrap">
-        <button class="vfab-mic-btn" id="vfab-mic-btn" onclick="vfabToggleRec()">
-          <svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a1 1 0 0 1 1 1 6 6 0 0 0 12 0 1 1 0 1 1 2 0 8 8 0 0 1-7 7.93V21h2a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2h2v-1.07A8 8 0 0 1 4 12a1 1 0 0 1 1-1z"/></svg>
-        </button>
-        <span class="vfab-mic-status" id="vfab-mic-status">Tap to start recording</span>
-      </div>
-
-      <div class="vfab-fg">
-        <label>Transcript</label>
-        <div class="vfab-transcript ph" id="vfab-transcript" contenteditable="true" spellcheck="false">Your words will appear here — or tap to type directly...</div>
-      </div>
-      <div class="vfab-actions">
-        <button class="vfab-primary" id="vfab-extract-btn" onclick="vfabExtract()">Extract Job Details</button>
-        <button class="vfab-cancel" onclick="vfabClose()">Cancel</button>
+      <!-- IMAGE MODE -->
+      <div id="vfab-mode-image" style="display:none;">
+        <p>Upload a screenshot from WorkMarket, Field Nation, an email, or a text — AI will pull out the job details.</p>
+        <img id="vfab-img-preview" class="vfab-img-preview" alt="Preview">
+        <div class="vfab-upload-area" id="vfab-upload-area" onclick="document.getElementById('vfab-file-input').click()">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p id="vfab-upload-label">Tap to choose a screenshot<br><span style="font-size:12px;color:#9ca3af;">JPG, PNG, or screenshot from camera roll</span></p>
+          <input type="file" id="vfab-file-input" accept="image/*" onchange="vfabFileChosen(this)">
+        </div>
+        <div class="vfab-actions">
+          <button class="vfab-primary" id="vfab-imgextract-btn" onclick="vfabExtractImage()" disabled>Extract Job Details</button>
+          <button class="vfab-cancel" onclick="vfabClose()">Cancel</button>
+        </div>
       </div>
     </div>
 
@@ -180,7 +215,7 @@
       <div class="vfab-fg"><label>Notes</label><textarea id="vfab-notes" rows="3" placeholder="Scope of work, tools needed..."></textarea></div>
       <div class="vfab-actions">
         <button class="vfab-primary" id="vfab-save-btn" onclick="vfabSave()">Save Job</button>
-        <button class="vfab-cancel" onclick="vfabShowStep('record')">Re-record</button>
+        <button class="vfab-cancel" onclick="vfabShowStep('record')">← Back</button>
       </div>
     </div>
 
@@ -214,12 +249,76 @@
         } catch(_) {}
     }
 
+    let _mode = 'voice';
+
+    window.vfabSetMode = function(mode) {
+        _mode = mode;
+        document.getElementById('vfab-mode-voice').style.display = mode === 'voice' ? '' : 'none';
+        document.getElementById('vfab-mode-image').style.display = mode === 'image' ? '' : 'none';
+        document.getElementById('vfab-tab-voice').classList.toggle('active', mode === 'voice');
+        document.getElementById('vfab-tab-image').classList.toggle('active', mode === 'image');
+        if (mode === 'voice' && _recording) _stopRec();
+    };
+
+    window.vfabFileChosen = function(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const preview = document.getElementById('vfab-img-preview');
+        preview.src = URL.createObjectURL(file);
+        preview.style.display = 'block';
+        document.getElementById('vfab-upload-label').innerHTML = file.name + '<br><span style="font-size:12px;color:#9ca3af;">Tap to change</span>';
+        document.getElementById('vfab-imgextract-btn').disabled = false;
+    };
+
+    window.vfabExtractImage = async function() {
+        const fileInput = document.getElementById('vfab-file-input');
+        if (!fileInput.files[0]) { alert('Choose a screenshot first.'); return; }
+        const btn = document.getElementById('vfab-imgextract-btn');
+        btn.textContent = 'Analyzing...'; btn.disabled = true;
+        try {
+            const form = new FormData();
+            form.append('image', fileInput.files[0]);
+            const res = await fetch('/api/image-to-job', { method: 'POST', body: form });
+            const f = await res.json();
+            if (!res.ok) { alert(f.error || 'Failed to read screenshot.'); return; }
+            _fillReview(f);
+            vfabShowStep('review');
+        } catch(err) {
+            alert('Connection error: ' + err.message);
+        } finally {
+            btn.textContent = 'Extract Job Details'; btn.disabled = false;
+        }
+    };
+
+    function _fillReview(f) {
+        document.getElementById('vfab-title').value          = f.title          || '';
+        document.getElementById('vfab-location').value       = f.location       || '';
+        document.getElementById('vfab-client-name').value    = f.client_name    || '';
+        document.getElementById('vfab-client-company').value = f.client_company || '';
+        document.getElementById('vfab-client-email').value   = f.client_email   || '';
+        document.getElementById('vfab-tech-pay').value       = f.tech_pay       || '';
+        document.getElementById('vfab-job-pay').value        = f.job_pay        || '';
+        document.getElementById('vfab-start').value          = f.start          || '';
+        document.getElementById('vfab-end').value            = f.end            || '';
+        document.getElementById('vfab-notes').value          = f.notes          || '';
+        if (f.platform) document.getElementById('vfab-platform').value = f.platform;
+        const matched = _matchEmployee(f.assigned_employee || '');
+        document.getElementById('vfab-employee').value = matched;
+    }
+
     window.vfabOpen = function() {
         _final = '';
+        _mode = 'voice';
         const box = document.getElementById('vfab-transcript');
         box.textContent = 'Your words will appear here — or tap to type directly...';
         box.classList.add('ph');
         _setMic(false);
+        vfabSetMode('voice');
+        // reset image tab
+        document.getElementById('vfab-file-input').value = '';
+        document.getElementById('vfab-img-preview').style.display = 'none';
+        document.getElementById('vfab-upload-label').innerHTML = 'Tap to choose a screenshot<br><span style="font-size:12px;color:#9ca3af;">JPG, PNG, or screenshot from camera roll</span>';
+        document.getElementById('vfab-imgextract-btn').disabled = true;
         vfabShowStep('record');
         document.getElementById('vfab-overlay').classList.add('show');
         _loadEmployees();
@@ -315,23 +414,7 @@
             });
             const f = await res.json();
             if (!res.ok) { alert(f.error || 'Failed to extract details.'); return; }
-
-            document.getElementById('vfab-title').value          = f.title          || '';
-            document.getElementById('vfab-location').value       = f.location       || '';
-            document.getElementById('vfab-client-name').value    = f.client_name    || '';
-            document.getElementById('vfab-client-company').value = f.client_company || '';
-            document.getElementById('vfab-client-email').value   = f.client_email   || '';
-            document.getElementById('vfab-tech-pay').value        = f.tech_pay       || '';
-            document.getElementById('vfab-job-pay').value         = f.job_pay        || '';
-            document.getElementById('vfab-start').value          = f.start          || '';
-            document.getElementById('vfab-end').value            = f.end            || '';
-            document.getElementById('vfab-notes').value          = f.notes          || '';
-            if (f.platform) document.getElementById('vfab-platform').value = f.platform;
-
-            // Match extracted employee name to actual employee dropdown
-            const matched = _matchEmployee(f.assigned_employee || '');
-            document.getElementById('vfab-employee').value = matched;
-
+            _fillReview(f);
             vfabShowStep('review');
         } catch(_) {
             alert('Connection error. Please try again.');
