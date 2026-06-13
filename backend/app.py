@@ -1181,10 +1181,10 @@ def settings():
 @login_required
 @owner_required
 def team_members():
-    employees = User.query.filter_by(
-        company_id=current_user.company_id,
-        role='employee',
-        is_active=True
+    employees = User.query.filter(
+        User.company_id == current_user.company_id,
+        User.is_active == True,
+        User.role.in_(['owner', 'employee'])
     ).order_by(User.name).all()
     return jsonify([{'name': e.name} for e in employees])
 
