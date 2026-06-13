@@ -575,6 +575,15 @@ def update_job(job_id):
         job.client_company = data.get('client_company', '')
         job.client_email   = data.get('client_email', '')
 
+        new_status = data.get('status')
+        if new_status and new_status != job.status:
+            allowed_statuses = {'scheduled', 'on_the_way', 'delayed', 'in_progress', 'paused', 'complete'}
+            if new_status not in allowed_statuses:
+                return jsonify({'error': 'Invalid status.'}), 400
+            job.status = new_status
+            if new_status == 'complete' and not job.completed_at:
+                job.completed_at = datetime.utcnow()
+
         # Reassignment means the new employee must confirm fresh
         if (job.tech_assigned or '') != old_tech:
             job.tech_confirmed = False

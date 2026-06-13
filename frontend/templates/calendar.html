@@ -187,6 +187,17 @@
                 <option value="">— Unassigned —</option>
             </select>
         </div>
+        <div class="form-group">
+            <label>Status</label>
+            <select id="job-status">
+                <option value="scheduled">Scheduled</option>
+                <option value="on_the_way">On the Way</option>
+                <option value="in_progress">In Progress</option>
+                <option value="paused">Paused</option>
+                <option value="delayed">Delayed</option>
+                <option value="complete">Complete</option>
+            </select>
+        </div>
         <div class="form-row">
             <div class="form-group">
                 <label>Employee Pay ($)</label>
@@ -333,6 +344,7 @@
         });
         document.getElementById('job-platform').value = 'workmarket';
         document.getElementById('job-tech').value = '';
+        document.getElementById('job-status').value = 'scheduled';
         document.getElementById('add-modal').classList.add('show');
     }
 
@@ -352,6 +364,7 @@
         document.getElementById('job-platform').value     = p.platform || 'manual';
         document.getElementById('job-location').value     = p.location || '';
         document.getElementById('job-tech').value         = p.tech || '';
+        document.getElementById('job-status').value       = p.status || 'scheduled';
         document.getElementById('job-tech-pay').value     = p.tech_pay ?? '';
         document.getElementById('job-job-pay').value      = p.job_pay ?? '';
         document.getElementById('job-start').value        = toLocalInput(activeEvent.start);
@@ -369,6 +382,7 @@
             platform:     document.getElementById('job-platform').value,
             location:     document.getElementById('job-location').value,
             tech:         document.getElementById('job-tech').value,
+            status:       document.getElementById('job-status').value,
             tech_pay:     document.getElementById('job-tech-pay').value,
             job_pay:      document.getElementById('job-job-pay').value,
             start:        document.getElementById('job-start').value,
