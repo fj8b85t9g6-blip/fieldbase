@@ -1672,10 +1672,11 @@ def detect_and_save_conflicts(company_id):
 @app.route('/billing')
 @login_required
 def billing():
+    # Billing now lives under Settings; keep this route as a redirect so old
+    # links, bookmarks, and the trial banner still resolve.
     if current_user.role != 'owner':
         return redirect(url_for('employee_dashboard'))
-    company = Company.query.get(current_user.company_id)
-    return render_template('billing.html', company=company)
+    return redirect(url_for('settings'))
 
 
 @app.route('/billing/create-checkout', methods=['POST'])
@@ -1701,7 +1702,7 @@ def create_checkout():
         line_items=[{'price': STRIPE_PRICE_ID, 'quantity': 1}],
         allow_promotion_codes=True,
         success_url=request.host_url + 'billing/success',
-        cancel_url=request.host_url + 'billing',
+        cancel_url=request.host_url + 'settings',
     )
     return jsonify({'url': session.url})
 
@@ -1751,8 +1752,8 @@ def connect_onboard():
             db.session.commit()
         link = stripe.AccountLink.create(
             account=company.stripe_connect_id,
-            refresh_url=request.host_url + 'billing',
-            return_url=request.host_url + 'billing?connected=1',
+            refresh_url=request.host_url + 'settings',
+            return_url=request.host_url + 'settings?connected=1',
             type='account_onboarding',
         )
         return jsonify({'url': link.url})

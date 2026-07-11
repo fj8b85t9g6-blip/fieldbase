@@ -54,6 +54,31 @@
     .section-company h3 { font-size: 15px; font-weight: 700; color: #1f2937; margin-bottom: 4px; }
     .section-company p { font-size: 14px; color: #6b7280; }
 
+    /* Billing / payments */
+    .section-heading { font-size: 22px; font-weight: 700; color: #1e3a5f; margin: 8px 0 6px; }
+    .trial-info { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; font-size: 14px; color: #1e40af; }
+    .trial-info strong { font-weight: 700; }
+    .expired-info { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; font-size: 14px; color: #991b1b; }
+    .plan-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb; }
+    .plan-name { font-size: 18px; font-weight: 700; color: #1f2937; }
+    .plan-price { font-size: 28px; font-weight: 800; color: #1e3a5f; }
+    .plan-price span { font-size: 14px; font-weight: 400; color: #6b7280; }
+    .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .status-trial { background: #fef3c7; color: #92400e; }
+    .status-active { background: #dcfce7; color: #166534; }
+    .status-past_due { background: #fef2f2; color: #991b1b; }
+    .status-canceled { background: #f3f4f6; color: #6b7280; }
+    .status-none { background: #fef2f2; color: #991b1b; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .features { list-style: none; margin: 0 0 28px; padding: 0; }
+    .features li { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #374151; padding: 6px 0; }
+    .features li::before { content: '✓'; color: #16a34a; font-weight: 700; font-size: 15px; }
+    .btn { display: inline-block; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; transition: all 0.2s; }
+    .btn-primary { background: #1e3a5f; color: #fff; }
+    .btn-primary:hover { background: #163055; }
+    .btn-outline { background: #fff; color: #1e3a5f; border: 1.5px solid #1e3a5f; }
+    .btn-outline:hover { background: #f0f4fa; }
+
     @media (max-width: 720px) {
       header { padding: 12px 16px; }
       nav { padding: 0 12px; }
@@ -83,12 +108,11 @@
     <a href="/tech-standards">Standards</a>
     <a href="/work-log">Work Log</a>
     <a href="/settings" class="active">Settings</a>
-    <a href="/billing" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Billing</a>
   </nav>
   {% if trial_days_left is not none and trial_days_left <= 7 %}
   <div style="background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 32px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;">
     <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
-    <a href="/billing" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
+    <a href="/settings" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
   </div>
   {% endif %}
 
@@ -111,6 +135,113 @@
         <p>Account created {{ company.created_at.strftime('%B %d, %Y') }}</p>
       </div>
     </div>
+
+    {% set status = company.subscription_status or 'none' %}
+
+    <h2 class="section-heading">Subscription</h2>
+    <p class="subtitle">Manage your FieldBase plan.</p>
+
+    {% if status == 'trialing' and company.trial_ends_at %}
+      <div class="trial-info">
+        <strong>Free trial active.</strong>
+        {% if trial_days_left is not none and trial_days_left > 0 %}
+          You have <strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left.
+          Add a card before your trial ends to keep access.
+        {% else %}
+          Your trial has ended. Subscribe below to restore access.
+        {% endif %}
+      </div>
+    {% elif status in ('canceled', 'none') %}
+      <div class="expired-info">
+        Your subscription is inactive. Subscribe below to restore full access.
+      </div>
+    {% elif status == 'past_due' %}
+      <div class="expired-info">
+        Your last payment failed. Update your payment method below to avoid losing access.
+      </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="plan-row">
+        <div>
+          <div class="plan-name">FieldBase Pro</div>
+          <div style="margin-top:6px;">
+            {% if status == 'trialing' %}
+              <span class="status-badge status-trial"><span class="dot"></span> Free Trial</span>
+            {% elif status == 'active' %}
+              <span class="status-badge status-active"><span class="dot"></span> Active</span>
+            {% elif status == 'past_due' %}
+              <span class="status-badge status-past_due"><span class="dot"></span> Past Due</span>
+            {% elif status == 'canceled' %}
+              <span class="status-badge status-canceled"><span class="dot"></span> Canceled</span>
+            {% else %}
+              <span class="status-badge status-none"><span class="dot"></span> No Subscription</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="plan-price">$200<span>/month</span></div>
+      </div>
+
+      <ul class="features">
+        <li>Unlimited jobs & crew members</li>
+        <li>Real-time GPS job tracking</li>
+        <li>Invoicing & payment tracking</li>
+        <li>Receipts & expense management</li>
+        <li>Reports, work logs & standards</li>
+        <li>AI voice note assistant</li>
+      </ul>
+
+      {% if status == 'active' %}
+        <button class="btn btn-outline" id="portal-btn">Manage Subscription</button>
+      {% else %}
+        <button class="btn btn-primary" id="checkout-btn">
+          {% if status == 'trialing' %}Subscribe Now{% else %}Reactivate — $200/mo{% endif %}
+        </button>
+      {% endif %}
+    </div>
+
+    <h2 class="section-heading">Get Paid</h2>
+    <p class="subtitle">Connect your bank so clients pay you directly. Money from job invoices lands in your account — FieldBase never touches it and takes no cut.</p>
+
+    <div class="card">
+      {% if company.connect_charges_enabled %}
+        <div class="plan-row" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+          <div>
+            <div class="plan-name">Payouts</div>
+            <div style="margin-top:6px;">
+              <span class="status-badge status-active"><span class="dot"></span> Active</span>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin-top:10px;">Client payments on completed jobs go straight to your bank.</p>
+          </div>
+          <button class="btn btn-outline" id="dashboard-btn">View Payouts</button>
+        </div>
+      {% elif company.stripe_connect_id %}
+        <div class="plan-row" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+          <div>
+            <div class="plan-name">Payouts</div>
+            <div style="margin-top:6px;">
+              <span class="status-badge status-trial"><span class="dot"></span> Setup Incomplete</span>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin-top:10px;">Finish verifying your details with Stripe to start receiving payments.</p>
+          </div>
+          <button class="btn btn-primary" id="connect-btn">Finish Setup</button>
+        </div>
+      {% else %}
+        <div class="plan-row" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+          <div>
+            <div class="plan-name">Payouts</div>
+            <div style="margin-top:6px;">
+              <span class="status-badge status-none"><span class="dot"></span> Not Connected</span>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin-top:10px;">Link a bank account (2 min, secured by Stripe) so clients can pay you by card.</p>
+          </div>
+          <button class="btn btn-primary" id="connect-btn">Set Up Payouts</button>
+        </div>
+      {% endif %}
+    </div>
+
+    <h2 class="section-heading">Integrations</h2>
+    <p class="subtitle">Connect your job platforms.</p>
 
     <form method="POST" action="/settings">
       <!-- WorkMarket -->
@@ -178,6 +309,68 @@
       <button type="submit">Save Settings</button>
     </form>
   </div>
+
+  <script>
+    const checkoutBtn  = document.getElementById('checkout-btn');
+    const portalBtn    = document.getElementById('portal-btn');
+    const connectBtn   = document.getElementById('connect-btn');
+    const dashboardBtn = document.getElementById('dashboard-btn');
+
+    if (checkoutBtn) {
+      checkoutBtn.addEventListener('click', async () => {
+        checkoutBtn.disabled = true;
+        checkoutBtn.textContent = 'Loading...';
+        const res  = await fetch('/billing/create-checkout', { method: 'POST' });
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;
+        else { alert(data.error || 'Something went wrong.'); checkoutBtn.disabled = false; }
+      });
+    }
+
+    if (portalBtn) {
+      portalBtn.addEventListener('click', async () => {
+        portalBtn.disabled = true;
+        portalBtn.textContent = 'Loading...';
+        const res  = await fetch('/billing/portal', { method: 'POST' });
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;
+        else { alert(data.error || 'Something went wrong.'); portalBtn.disabled = false; }
+      });
+    }
+
+    if (connectBtn) {
+      connectBtn.addEventListener('click', async () => {
+        const original = connectBtn.textContent;
+        connectBtn.disabled = true;
+        connectBtn.textContent = 'Loading...';
+        const res  = await fetch('/billing/connect', { method: 'POST' });
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;
+        else { alert(data.error || 'Something went wrong.'); connectBtn.disabled = false; connectBtn.textContent = original; }
+      });
+    }
+
+    if (dashboardBtn) {
+      dashboardBtn.addEventListener('click', async () => {
+        dashboardBtn.disabled = true;
+        dashboardBtn.textContent = 'Loading...';
+        const res  = await fetch('/billing/connect/dashboard', { method: 'POST' });
+        const data = await res.json();
+        if (data.url) window.open(data.url, '_blank');
+        else { alert(data.error || 'Something went wrong.'); }
+        dashboardBtn.disabled = false;
+        dashboardBtn.textContent = 'View Payouts';
+      });
+    }
+
+    // On return from Stripe Connect onboarding, confirm status then refresh.
+    if (new URLSearchParams(window.location.search).get('connected') === '1') {
+      fetch('/billing/connect/status')
+        .then(r => r.json())
+        .then(() => window.location.replace('/settings'))
+        .catch(() => window.location.replace('/settings'));
+    }
+  </script>
 {% include '_voice_fab.html' %}
 </body>
 </html>
