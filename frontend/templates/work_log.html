@@ -82,7 +82,7 @@
   <a href="/work-log" class="active">Work Log</a>
   {% if current_user.role == 'owner' %}
   <a href="/settings">Settings</a>
-    <a href="/billing">Billing</a>
+    <a href="/billing" style="padding:14px 16px;font-size:14px;font-weight:500;color:#5a6a7e;text-decoration:none;border-bottom:2px solid transparent;">Billing</a>
   {% endif %}
 </nav>
   {% if trial_days_left is not none and trial_days_left <= 7 %}
