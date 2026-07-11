@@ -159,6 +159,46 @@
         </button>
       {% endif %}
     </div>
+
+    <h2 style="margin-top:8px;">Get Paid</h2>
+    <p class="subtitle">Connect your bank so clients pay you directly. Money from job invoices lands in your account — FieldBase never touches it and takes no cut.</p>
+
+    <div class="card">
+      {% if company.connect_charges_enabled %}
+        <div class="plan-row" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+          <div>
+            <div class="plan-name">Payouts</div>
+            <div style="margin-top:6px;">
+              <span class="status-badge status-active"><span class="dot"></span> Active</span>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin-top:10px;">Client payments on completed jobs go straight to your bank.</p>
+          </div>
+          <button class="btn btn-outline" id="dashboard-btn">View Payouts</button>
+        </div>
+      {% elif company.stripe_connect_id %}
+        <div class="plan-row" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+          <div>
+            <div class="plan-name">Payouts</div>
+            <div style="margin-top:6px;">
+              <span class="status-badge status-trial"><span class="dot"></span> Setup Incomplete</span>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin-top:10px;">Finish verifying your details with Stripe to start receiving payments.</p>
+          </div>
+          <button class="btn btn-primary" id="connect-btn">Finish Setup</button>
+        </div>
+      {% else %}
+        <div class="plan-row" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">
+          <div>
+            <div class="plan-name">Payouts</div>
+            <div style="margin-top:6px;">
+              <span class="status-badge status-none"><span class="dot"></span> Not Connected</span>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin-top:10px;">Link a bank account (2 min, secured by Stripe) so clients can pay you by card.</p>
+          </div>
+          <button class="btn btn-primary" id="connect-btn">Set Up Payouts</button>
+        </div>
+      {% endif %}
+    </div>
   </div>
 
   <script>
@@ -185,6 +225,41 @@
         if (data.url) window.location.href = data.url;
         else { alert(data.error || 'Something went wrong.'); portalBtn.disabled = false; }
       });
+    }
+
+    const connectBtn   = document.getElementById('connect-btn');
+    const dashboardBtn = document.getElementById('dashboard-btn');
+
+    if (connectBtn) {
+      connectBtn.addEventListener('click', async () => {
+        connectBtn.disabled = true;
+        connectBtn.textContent = 'Loading...';
+        const res  = await fetch('/billing/connect', { method: 'POST' });
+        const data = await res.json();
+        if (data.url) window.location.href = data.url;
+        else { alert(data.error || 'Something went wrong.'); connectBtn.disabled = false; connectBtn.textContent = 'Set Up Payouts'; }
+      });
+    }
+
+    if (dashboardBtn) {
+      dashboardBtn.addEventListener('click', async () => {
+        dashboardBtn.disabled = true;
+        dashboardBtn.textContent = 'Loading...';
+        const res  = await fetch('/billing/connect/dashboard', { method: 'POST' });
+        const data = await res.json();
+        if (data.url) window.open(data.url, '_blank');
+        else { alert(data.error || 'Something went wrong.'); }
+        dashboardBtn.disabled = false;
+        dashboardBtn.textContent = 'View Payouts';
+      });
+    }
+
+    // On return from Stripe onboarding, confirm status then refresh the page.
+    if (new URLSearchParams(window.location.search).get('connected') === '1') {
+      fetch('/billing/connect/status')
+        .then(r => r.json())
+        .then(() => window.location.replace('/billing'))
+        .catch(() => window.location.replace('/billing'));
     }
   </script>
 </body>

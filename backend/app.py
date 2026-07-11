@@ -17,6 +17,9 @@ except ImportError:
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PRICE_ID      = os.environ.get('STRIPE_PRICE_ID', '')
 STRIPE_WEBHOOK_SECRET= os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+# Optional: if Connect events (account.updated, connected checkout.session.completed)
+# are delivered to a SEPARATE webhook endpoint, its signing secret goes here.
+STRIPE_CONNECT_WEBHOOK_SECRET = os.environ.get('STRIPE_CONNECT_WEBHOOK_SECRET', '')
 TRIAL_DAYS           = 14
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -58,6 +61,8 @@ class Company(db.Model):
     stripe_subscription_id = db.Column(db.String(100))
     subscription_status    = db.Column(db.String(20))   # trialing, active, past_due, canceled
     trial_ends_at          = db.Column(db.DateTime)
+    stripe_connect_id       = db.Column(db.String(100))  # connected Express account (collects job payments)
+    connect_charges_enabled = db.Column(db.Boolean, default=False)  # true once Stripe onboarding is complete
     users                  = db.relationship('User', backref='company', lazy=True)
     jobs                   = db.relationship('Job', backref='company', lazy=True)
 
@@ -870,14 +875,22 @@ def _send_auto_invoice(job):
     if not job.client_email or not job.job_pay:
         return
     try:
+        # Route the charge to the owner's connected account so the money lands in
+        # THEIR bank. If they haven't connected yet, fall back to the platform account.
+        company = Company.query.get(job.company_id)
+        acct_opts = {}
+        if company and company.connect_charges_enabled and company.stripe_connect_id:
+            acct_opts = {'stripe_account': company.stripe_connect_id}
         price = stripe.Price.create(
             unit_amount=int(job.job_pay * 100),
             currency='usd',
             product_data={'name': job.title},
+            **acct_opts,
         )
         link = stripe.PaymentLink.create(
             line_items=[{'price': price.id, 'quantity': 1}],
             metadata={'job_id': str(job.id)},
+            **acct_opts,
         )
         job.stripe_payment_link = link.url
         job.invoice_sent    = True
@@ -1715,13 +1728,88 @@ def billing_portal():
     return jsonify({'url': session.url})
 
 
+# ─────────────────────────────────────────
+# STRIPE CONNECT — each owner links their own account so client job
+# payments land in THEIR bank, not the platform's.
+# ─────────────────────────────────────────
+
+@app.route('/billing/connect', methods=['POST'])
+@login_required
+def connect_onboard():
+    if current_user.role != 'owner':
+        return jsonify({'error': 'unauthorized'}), 403
+    company = Company.query.get(current_user.company_id)
+    try:
+        if not company.stripe_connect_id:
+            acct = stripe.Account.create(
+                type='express',
+                email=current_user.email,
+                business_profile={'name': company.name},
+                metadata={'company_id': company.id},
+            )
+            company.stripe_connect_id = acct.id
+            db.session.commit()
+        link = stripe.AccountLink.create(
+            account=company.stripe_connect_id,
+            refresh_url=request.host_url + 'billing',
+            return_url=request.host_url + 'billing?connected=1',
+            type='account_onboarding',
+        )
+        return jsonify({'url': link.url})
+    except Exception as e:
+        app.logger.error(f'Connect onboarding failed for company {company.id}: {e}')
+        return jsonify({'error': 'Could not start payout setup. Try again.'}), 500
+
+
+@app.route('/billing/connect/dashboard', methods=['POST'])
+@login_required
+def connect_dashboard():
+    if current_user.role != 'owner':
+        return jsonify({'error': 'unauthorized'}), 403
+    company = Company.query.get(current_user.company_id)
+    if not company.stripe_connect_id:
+        return jsonify({'error': 'No payout account connected yet.'}), 400
+    try:
+        link = stripe.Account.create_login_link(company.stripe_connect_id)
+        return jsonify({'url': link.url})
+    except Exception as e:
+        app.logger.error(f'Connect dashboard link failed for company {company.id}: {e}')
+        return jsonify({'error': 'Could not open payout dashboard.'}), 500
+
+
+@app.route('/billing/connect/status')
+@login_required
+def connect_status():
+    """Refresh charges_enabled from Stripe on return from onboarding (webhook is the
+    source of truth, but this gives instant feedback without waiting for it)."""
+    if current_user.role != 'owner':
+        return jsonify({'error': 'unauthorized'}), 403
+    company = Company.query.get(current_user.company_id)
+    if not company.stripe_connect_id:
+        return jsonify({'connected': False, 'charges_enabled': False})
+    try:
+        acct = stripe.Account.retrieve(company.stripe_connect_id)
+        company.connect_charges_enabled = bool(acct.get('charges_enabled'))
+        db.session.commit()
+    except Exception as e:
+        app.logger.error(f'Connect status check failed for company {company.id}: {e}')
+    return jsonify({'connected': True, 'charges_enabled': company.connect_charges_enabled})
+
+
 @app.route('/stripe/webhook', methods=['POST'])
 def stripe_webhook():
     payload    = request.get_data()
     sig_header = request.headers.get('Stripe-Signature')
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
-    except Exception:
+    event = None
+    for secret in (STRIPE_WEBHOOK_SECRET, STRIPE_CONNECT_WEBHOOK_SECRET):
+        if not secret:
+            continue
+        try:
+            event = stripe.Webhook.construct_event(payload, sig_header, secret)
+            break
+        except Exception:
+            continue
+    if event is None:
         return jsonify({'error': 'Invalid signature'}), 400
     obj = event['data']['object']
     if event['type'] in ('customer.subscription.created', 'customer.subscription.updated'):
@@ -1743,6 +1831,12 @@ def stripe_webhook():
                 job.payment_received = True
                 job.amount_paid      = (obj.get('amount_total') or 0) / 100
                 db.session.commit()
+    elif event['type'] == 'account.updated':
+        # A connected (Express) account finished/updated onboarding.
+        company = Company.query.filter_by(stripe_connect_id=obj['id']).first()
+        if company:
+            company.connect_charges_enabled = bool(obj.get('charges_enabled'))
+            db.session.commit()
     return jsonify({'status': 'ok'})
 
 
@@ -1780,6 +1874,8 @@ with app.app_context():
         ('stripe_subscription_id', 'ALTER TABLE companies ADD COLUMN stripe_subscription_id VARCHAR(100)'),
         ('subscription_status',    'ALTER TABLE companies ADD COLUMN subscription_status VARCHAR(20)'),
         ('trial_ends_at',          'ALTER TABLE companies ADD COLUMN trial_ends_at TIMESTAMP'),
+        ('stripe_connect_id',       'ALTER TABLE companies ADD COLUMN stripe_connect_id VARCHAR(100)'),
+        ('connect_charges_enabled', 'ALTER TABLE companies ADD COLUMN connect_charges_enabled BOOLEAN DEFAULT FALSE'),
         ]:
             try:
                 conn.execute(text(ddl))
