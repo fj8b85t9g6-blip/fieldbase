@@ -11,8 +11,22 @@ import uuid
 import stripe
 try:
     from backend import storage   # Railway: gunicorn backend.app:app
+    from backend.transcription import (
+        MAX_AUDIO_BYTES,
+        TranscriptionConfigurationError,
+        TranscriptionProviderError,
+        transcribe_audio,
+        transcription_is_configured,
+    )
 except ImportError:
     import storage                # local: run from inside backend/
+    from transcription import (
+        MAX_AUDIO_BYTES,
+        TranscriptionConfigurationError,
+        TranscriptionProviderError,
+        transcribe_audio,
+        transcription_is_configured,
+    )
 
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PRICE_ID      = os.environ.get('STRIPE_PRICE_ID', '')
@@ -1315,6 +1329,52 @@ def image_to_job():
 # ─────────────────────────────────────────
 # VOICE-TO-JOB
 # ─────────────────────────────────────────
+
+@app.route('/api/voice/transcription', methods=['GET', 'POST'])
+@login_required
+@owner_required
+def voice_transcription():
+    if request.method == 'GET':
+        return jsonify({'configured': transcription_is_configured()})
+
+    if not transcription_is_configured():
+        return jsonify({
+            'error': 'Server transcription is not configured.',
+            'fallback_available': True,
+        }), 503
+
+    audio = request.files.get('audio')
+    if not audio:
+        return jsonify({'error': 'No audio recording provided.'}), 400
+
+    if request.content_length and request.content_length > MAX_AUDIO_BYTES + 64 * 1024:
+        return jsonify({'error': 'Audio recording exceeds the 15 MB upload limit.'}), 413
+
+    audio_bytes = audio.stream.read(MAX_AUDIO_BYTES + 1)
+    if len(audio_bytes) > MAX_AUDIO_BYTES:
+        return jsonify({'error': 'Audio recording exceeds the 15 MB upload limit.'}), 413
+
+    try:
+        transcript = transcribe_audio(
+            audio_bytes,
+            filename=audio.filename,
+            content_type=audio.content_type,
+        )
+        return jsonify({'transcript': transcript})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except TranscriptionConfigurationError:
+        return jsonify({
+            'error': 'Server transcription is not configured.',
+            'fallback_available': True,
+        }), 503
+    except TranscriptionProviderError as e:
+        app.logger.warning(
+            'Voice transcription provider failure (status=%s): %s',
+            e.status_code,
+            e,
+        )
+        return jsonify({'error': str(e), 'fallback_available': True}), 502
 
 @app.route('/api/voice-to-job', methods=['POST'])
 @login_required

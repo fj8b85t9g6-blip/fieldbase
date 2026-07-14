@@ -226,8 +226,21 @@
 
 <script>
 (function() {
-    let _rec = null, _recording = false, _final = '';
+    let _rec = null, _mediaRecorder = null, _mediaStream = null;
+    let _recording = false, _recordingMode = null, _starting = false, _final = '';
+    let _mediaChunks = [], _discardRecording = false, _recordingTimer = null;
+    let _transcriptionConfigured = null, _capabilityPromise = null, _captureVersion = 0;
+    let _transcriptionAbortController = null;
     let _employees = [];
+    const MAX_RECORDING_MS = 120000;
+
+    const transcriptBox = document.getElementById('vfab-transcript');
+    transcriptBox.addEventListener('focus', () => {
+        if (transcriptBox.classList.contains('ph')) {
+            transcriptBox.textContent = '';
+            transcriptBox.classList.remove('ph');
+        }
+    });
 
     function show(id)  { document.getElementById(id).style.display = ''; }
     function hide(id)  { document.getElementById(id).style.display = 'none'; }
@@ -249,6 +262,23 @@
         } catch(_) {}
     }
 
+    async function _loadTranscriptionCapability() {
+        if (_transcriptionConfigured !== null) return _transcriptionConfigured;
+        if (_capabilityPromise) return _capabilityPromise;
+        _capabilityPromise = fetch('/api/voice/transcription')
+            .then(res => res.ok ? res.json() : {configured: false})
+            .then(data => {
+                _transcriptionConfigured = data.configured === true;
+                return _transcriptionConfigured;
+            })
+            .catch(() => {
+                _transcriptionConfigured = false;
+                return false;
+            })
+            .finally(() => { _capabilityPromise = null; });
+        return _capabilityPromise;
+    }
+
     let _mode = 'voice';
 
     window.vfabSetMode = function(mode) {
@@ -257,7 +287,14 @@
         document.getElementById('vfab-mode-image').style.display = mode === 'image' ? '' : 'none';
         document.getElementById('vfab-tab-voice').classList.toggle('active', mode === 'voice');
         document.getElementById('vfab-tab-image').classList.toggle('active', mode === 'image');
-        if (mode === 'voice' && _recording) _stopRec();
+        if (mode !== 'voice' && (_recording || _starting)) {
+            _captureVersion++;
+            _stopRec(true);
+        }
+        if (mode !== 'voice' && _transcriptionAbortController) {
+            _captureVersion++;
+            _transcriptionAbortController.abort();
+        }
     };
 
     window.vfabFileChosen = function(input) {
@@ -307,6 +344,8 @@
     }
 
     window.vfabOpen = function() {
+        _captureVersion++;
+        if (_transcriptionAbortController) _transcriptionAbortController.abort();
         _final = '';
         _mode = 'voice';
         const box = document.getElementById('vfab-transcript');
@@ -322,10 +361,13 @@
         vfabShowStep('record');
         document.getElementById('vfab-overlay').classList.add('show');
         _loadEmployees();
+        _loadTranscriptionCapability();
     };
 
     window.vfabClose = function() {
-        if (_recording) _stopRec();
+        _captureVersion++;
+        if (_transcriptionAbortController) _transcriptionAbortController.abort();
+        if (_recording || _starting) _stopRec(true);
         document.getElementById('vfab-overlay').classList.remove('show');
     };
 
@@ -336,12 +378,126 @@
     };
 
     window.vfabToggleRec = function() {
-        _recording ? _stopRec() : _startRec();
+        if (_starting) return;
+        _recording ? _stopRec(false) : _startRec();
     };
 
-    function _startRec() {
+    async function _startRec() {
+        const version = _captureVersion;
+        _starting = true;
+        _setMic(false, 'Preparing microphone...');
+        const useServerTranscription = await _loadTranscriptionCapability();
+        if (version !== _captureVersion) { _starting = false; return; }
+
+        if (useServerTranscription && window.MediaRecorder && navigator.mediaDevices?.getUserMedia) {
+            await _startMediaRecording(version);
+        } else {
+            _startSpeechRecognition();
+        }
+        _starting = false;
+    }
+
+    function _preferredAudioType() {
+        const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm'];
+        return types.find(type => MediaRecorder.isTypeSupported(type)) || '';
+    }
+
+    async function _startMediaRecording(version) {
+        try {
+            _mediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
+                video: false
+            });
+            if (version !== _captureVersion) {
+                _releaseMediaStream();
+                return;
+            }
+
+            const mimeType = _preferredAudioType();
+            _mediaRecorder = new MediaRecorder(_mediaStream, mimeType ? {mimeType} : undefined);
+            _mediaChunks = [];
+            _discardRecording = false;
+            _mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) _mediaChunks.push(event.data);
+            };
+            _mediaRecorder.onerror = () => {
+                _recording = false;
+                _recordingMode = null;
+                _discardRecording = true;
+                _releaseMediaStream();
+                _setMic(false, 'Recording failed - type your note below');
+            };
+            _mediaRecorder.onstop = async () => {
+                clearTimeout(_recordingTimer);
+                _releaseMediaStream();
+                const chunks = _mediaChunks;
+                const discard = _discardRecording;
+                const recordedType = _mediaRecorder?.mimeType || mimeType || 'audio/webm';
+                _mediaRecorder = null;
+                _mediaChunks = [];
+                _recordingMode = null;
+                if (discard || !chunks.length) {
+                    _setMic(false);
+                    return;
+                }
+                const blob = new Blob(chunks, {type: recordedType});
+                await _uploadRecording(blob, recordedType);
+            };
+            _mediaRecorder.start(1000);
+            _recording = true;
+            _recordingMode = 'media';
+            _setMic(true, 'Recording - tap to stop');
+            _recordingTimer = setTimeout(() => _stopRec(false), MAX_RECORDING_MS);
+        } catch(_) {
+            _releaseMediaStream();
+            if (version !== _captureVersion) return;
+            _startSpeechRecognition('Recorder unavailable - using browser speech');
+        }
+    }
+
+    async function _uploadRecording(blob, mimeType) {
+        const version = _captureVersion;
+        const controller = new AbortController();
+        _transcriptionAbortController = controller;
+        const extractBtn = document.getElementById('vfab-extract-btn');
+        extractBtn.disabled = true;
+        _setMic(false, 'Transcribing recording...');
+        const form = new FormData();
+        const extension = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+        form.append('audio', blob, 'voice-note.' + extension);
+        try {
+            const res = await fetch('/api/voice/transcription', {
+                method: 'POST',
+                body: form,
+                signal: controller.signal
+            });
+            const data = await res.json().catch(() => ({}));
+            if (version !== _captureVersion) return;
+            if (!res.ok) {
+                if (res.status === 503) _transcriptionConfigured = false;
+                _showTypedFallback(data.error || 'Could not transcribe the recording.');
+                return;
+            }
+            const box = document.getElementById('vfab-transcript');
+            _final = data.transcript.trim() + ' ';
+            box.classList.remove('ph');
+            box.textContent = data.transcript.trim();
+            _setMic(false, 'Transcription ready');
+        } catch(err) {
+            if (err.name === 'AbortError') return;
+            _showTypedFallback('Transcription connection failed.');
+        } finally {
+            if (_transcriptionAbortController === controller) _transcriptionAbortController = null;
+            extractBtn.disabled = false;
+        }
+    }
+
+    function _startSpeechRecognition(status) {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) { alert('Voice recording requires Chrome or Safari.'); return; }
+        if (!SR) {
+            _showTypedFallback('Voice capture is unavailable in this browser.');
+            return;
+        }
         _rec = new SR();
         _rec.continuous = true;
         _rec.interimResults = true;
@@ -357,34 +513,58 @@
             box.textContent = (_final + interim).trim();
         };
         _rec.onerror = function(e) {
-            _recording = false; _setMic(false);
-            if (e.error === 'no-speech') return;
-            // network/not-allowed/etc — let user type instead
-            document.getElementById('vfab-mic-status').textContent = 'Speech unavailable — type your note below';
-            const box = document.getElementById('vfab-transcript');
-            if (box.classList.contains('ph')) {
-                box.textContent = '';
-                box.classList.remove('ph');
-                box.focus();
+            _recording = false;
+            _recordingMode = null;
+            _rec = null;
+            if (e.error === 'no-speech') {
+                _setMic(false, 'No speech detected - tap to try again');
+                return;
             }
+            _showTypedFallback('Browser speech is unavailable.');
         };
         _rec.onend = function() {
             if (_recording) { try { _rec.start(); } catch(_) {} }
         };
         _rec.start();
         _recording = true;
-        _setMic(true);
+        _recordingMode = 'speech';
+        _setMic(true, status || 'Listening - tap to stop');
     }
 
-    function _stopRec() {
+    function _stopRec(discard) {
         _recording = false;
-        if (_rec) { _rec.stop(); _rec = null; }
+        clearTimeout(_recordingTimer);
+        if (_recordingMode === 'media' && _mediaRecorder) {
+            _discardRecording = discard === true;
+            if (_mediaRecorder.state !== 'inactive') _mediaRecorder.stop();
+            return;
+        }
+        if (_rec) {
+            try { _rec.stop(); } catch(_) {}
+            _rec = null;
+        }
+        _recordingMode = null;
         _setMic(false);
     }
 
-    function _setMic(on) {
+    function _releaseMediaStream() {
+        if (_mediaStream) _mediaStream.getTracks().forEach(track => track.stop());
+        _mediaStream = null;
+    }
+
+    function _showTypedFallback(message) {
+        _setMic(false, message + ' Type your note below.');
+        const box = document.getElementById('vfab-transcript');
+        if (box.classList.contains('ph')) {
+            box.textContent = '';
+            box.classList.remove('ph');
+            box.focus();
+        }
+    }
+
+    function _setMic(on, status) {
         document.getElementById('vfab-mic-btn').classList.toggle('recording', on);
-        document.getElementById('vfab-mic-status').textContent = on ? 'Listening — tap to stop' : 'Tap to start recording';
+        document.getElementById('vfab-mic-status').textContent = status || (on ? 'Listening - tap to stop' : 'Tap to start recording');
     }
 
     function _matchEmployee(extracted) {
@@ -399,11 +579,15 @@
     }
 
     window.vfabExtract = async function() {
+        if (_recording && _recordingMode === 'media') {
+            _stopRec(false);
+            return;
+        }
         const transcript = document.getElementById('vfab-transcript').textContent.trim();
         if (!transcript || transcript.startsWith('Your words will appear here')) {
             alert('Record a voice note first.'); return;
         }
-        if (_recording) _stopRec();
+        if (_recording) _stopRec(false);
         const btn = document.getElementById('vfab-extract-btn');
         btn.textContent = 'Analyzing...'; btn.disabled = true;
         try {
