@@ -416,6 +416,26 @@
         }
     }
 
+    function sanitizeDisplayText(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[char]);
+    }
+
+    function sanitizeAssetUrl(value) {
+        try {
+            const url = new URL(String(value), window.location.origin);
+            return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+        } catch {
+            return '';
+        }
+    }
+
+    function safeInteger(value) {
+        const number = Number(value);
+        return Number.isSafeInteger(number) && number >= 0 ? number : null;
+    }
+
     async function uploadDoc(jobId, input) {
         const file = input.files[0];
         if (!file) return;
@@ -431,15 +451,22 @@
         const docs = await res.json();
         const list = document.getElementById(`doc-list-${jobId}`);
         if (!list) return;
-        list.innerHTML = docs.map(d => `
+        const sanitizedDocs = docs.map(doc => {
+          const url = sanitizeAssetUrl(doc.url);
+          const docId = safeInteger(doc.id);
+          const safeJobId = safeInteger(jobId);
+          if (!url || docId === null || safeJobId === null) return '';
+          return `
             <div style="display:flex;align-items:center;gap:8px;background:#f9fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;">
               <span>📄</span>
-              <a href="${d.url}" target="_blank" download="${d.name}"
-                 style="font-size:13px;font-weight:500;color:#1e3a5f;text-decoration:none;flex:1;">${d.name}</a>
-              <span style="font-size:11px;color:#9ca3af;">${d.uploaded_at}</span>
-              <button onclick="deleteDoc(${d.id}, ${jobId})"
+              <a href="${url}" target="_blank" rel="noopener" download="${sanitizeDisplayText(doc.name)}"
+                 style="font-size:13px;font-weight:500;color:#1e3a5f;text-decoration:none;flex:1;">${sanitizeDisplayText(doc.name)}</a>
+              <span style="font-size:11px;color:#9ca3af;">${sanitizeDisplayText(doc.uploaded_at)}</span>
+              <button onclick="deleteDoc(${docId}, ${safeJobId})"
                 style="background:none;border:none;color:#ef4444;font-size:14px;cursor:pointer;">✕</button>
-            </div>`).join('');
+            </div>`;
+        }).join('');
+        list.innerHTML = sanitizedDocs;
     }
 
     async function deleteDoc(docId, jobId) {
@@ -464,14 +491,21 @@
         const photos = await res.json();
         const grid   = document.getElementById(`photo-grid-${jobId}`);
         if (!grid) return;
-        grid.innerHTML = photos.map(p => `
+        const sanitizedPhotos = photos.map(photo => {
+          const url = sanitizeAssetUrl(photo.url);
+          const photoId = safeInteger(photo.id);
+          const safeJobId = safeInteger(jobId);
+          if (!url || photoId === null || safeJobId === null) return '';
+          return `
             <div style="position:relative;">
-                <a href="${p.url}" target="_blank">
-                    <img src="${p.url}" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;">
+                <a href="${url}" target="_blank" rel="noopener">
+                    <img src="${url}" alt="Job photo" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;">
                 </a>
-                <button onclick="deletePhoto(${p.id}, ${jobId})"
+                <button onclick="deletePhoto(${photoId}, ${safeJobId})"
                     style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1;">✕</button>
-            </div>`).join('');
+            </div>`;
+        }).join('');
+        grid.innerHTML = sanitizedPhotos;
     }
 
     async function deletePhoto(photoId, jobId) {

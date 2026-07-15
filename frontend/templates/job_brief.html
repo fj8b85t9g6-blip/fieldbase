@@ -394,11 +394,24 @@ function removePendingDoc(index) {
 
 function renderPendingDocs() {
   const list = document.getElementById('doc-pending-list');
-  list.innerHTML = pendingDocs.map((f, i) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;background:#f9fafc;border:1px solid #d0d7e3;border-radius:6px;padding:8px 12px;">
-      <span style="font-size:13px;color:#374151;">📄 ${f.name}</span>
-      <button onclick="removePendingDoc(${i})" style="background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;line-height:1;">✕</button>
-    </div>`).join('');
+  list.replaceChildren();
+  pendingDocs.forEach((file, index) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:#f9fafc;border:1px solid #d0d7e3;border-radius:6px;padding:8px 12px;';
+
+    const name = document.createElement('span');
+    name.style.cssText = 'font-size:13px;color:#374151;';
+    name.textContent = `📄 ${file.name}`;
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.style.cssText = 'background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;line-height:1;';
+    remove.textContent = '✕';
+    remove.addEventListener('click', () => removePendingDoc(index));
+
+    row.append(name, remove);
+    list.append(row);
+  });
 }
 
 function printBrief() {

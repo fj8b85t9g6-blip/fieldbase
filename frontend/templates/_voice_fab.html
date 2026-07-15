@@ -303,7 +303,11 @@
         const preview = document.getElementById('vfab-img-preview');
         preview.src = URL.createObjectURL(file);
         preview.style.display = 'block';
-        document.getElementById('vfab-upload-label').innerHTML = file.name + '<br><span style="font-size:12px;color:#9ca3af;">Tap to change</span>';
+        const label = document.getElementById('vfab-upload-label');
+        const hint = document.createElement('span');
+        hint.style.cssText = 'font-size:12px;color:#9ca3af;';
+        hint.textContent = 'Tap to change';
+        label.replaceChildren(document.createTextNode(file.name), document.createElement('br'), hint);
         document.getElementById('vfab-imgextract-btn').disabled = false;
     };
 

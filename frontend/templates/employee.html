@@ -293,6 +293,21 @@
       }
     }
 
+    function sanitizeDisplayText(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[char]);
+    }
+
+    function sanitizeAssetUrl(value) {
+        try {
+            const url = new URL(String(value), window.location.origin);
+            return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+        } catch {
+            return '';
+        }
+    }
+
     async function empUploadPhoto(jobId, input) {
         const file = input.files[0];
         if (!file) return;
@@ -309,9 +324,13 @@
         const photos = await res.json();
         const grid   = document.getElementById(`emp-photo-grid-${jobId}`);
         if (!grid) return;
-        grid.innerHTML = photos.map(p =>
-            `<a href="${p.url}" target="_blank"><img src="${p.url}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;"></a>`
-        ).join('');
+        const sanitizedPhotos = photos.map(photo => {
+            const url = sanitizeAssetUrl(photo.url);
+            return url
+                ? `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="Job photo" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb;"></a>`
+                : '';
+        }).join('');
+        grid.innerHTML = sanitizedPhotos;
     }
 
     async function empLoadDocs(jobId) {
@@ -325,16 +344,21 @@
             return;
         }
         section.style.display = 'block';
-        list.innerHTML = docs.map(d => `
-            <a href="${d.url}" target="_blank" download="${d.name}"
+        const sanitizedDocs = docs.map(doc => {
+          const url = sanitizeAssetUrl(doc.url);
+          if (!url) return '';
+          return `
+            <a href="${url}" target="_blank" rel="noopener" download="${sanitizeDisplayText(doc.name)}"
                style="display:flex;align-items:center;gap:8px;background:#f9fafc;border:1px solid #d0d7e3;border-radius:6px;padding:8px 12px;text-decoration:none;color:#1e3a5f;">
               <span style="font-size:16px;">📄</span>
               <div>
-                <div style="font-size:13px;font-weight:600;">${d.name}</div>
-                <div style="font-size:11px;color:#9ca3af;">Added ${d.uploaded_at}</div>
+                <div style="font-size:13px;font-weight:600;">${sanitizeDisplayText(doc.name)}</div>
+                <div style="font-size:11px;color:#9ca3af;">Added ${sanitizeDisplayText(doc.uploaded_at)}</div>
               </div>
               <span style="margin-left:auto;font-size:12px;font-weight:600;color:#6b7280;">Download</span>
-            </a>`).join('');
+            </a>`;
+        }).join('');
+        list.innerHTML = sanitizedDocs;
     }
 
     document.addEventListener('DOMContentLoaded', () => {
