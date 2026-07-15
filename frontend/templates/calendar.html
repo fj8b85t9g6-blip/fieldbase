@@ -277,7 +277,7 @@
             const employees = await res.json();
             const sel = document.getElementById('job-tech');
             const current = sel.value;
-            sel.innerHTML = '<option value="">— Unassigned —</option>';
+            sel.replaceChildren(new Option('— Unassigned —', ''));
             employees.forEach(e => {
                 const opt = document.createElement('option');
                 opt.value = e.name;

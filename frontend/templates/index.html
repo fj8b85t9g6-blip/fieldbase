@@ -149,7 +149,30 @@
       var banner = document.createElement('div');
       banner.id = 'ios-install-banner';
       banner.style.cssText = 'background:#1e3a5f;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;font-family:-apple-system,sans-serif;font-size:14px;position:sticky;top:0;z-index:999;';
-      banner.innerHTML = '<span style="flex:1;">📲 <strong>Install FieldBase:</strong> tap <strong>Share</strong> then <strong>"Add to Home Screen"</strong></span><button onclick="sessionStorage.setItem(\'pwa_banner_dismissed\',\'1\');this.parentNode.remove();" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Got it</button>';
+      var message = document.createElement('span');
+      message.style.flex = '1';
+      message.append(document.createTextNode('📲 '));
+      var installLabel = document.createElement('strong');
+      installLabel.textContent = 'Install FieldBase:';
+      var shareLabel = document.createElement('strong');
+      shareLabel.textContent = 'Share';
+      var homeLabel = document.createElement('strong');
+      homeLabel.textContent = '"Add to Home Screen"';
+      message.append(
+        installLabel,
+        document.createTextNode(' tap '),
+        shareLabel,
+        document.createTextNode(' then '),
+        homeLabel
+      );
+      var dismiss = document.createElement('button');
+      dismiss.style.cssText = 'background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;';
+      dismiss.textContent = 'Got it';
+      dismiss.addEventListener('click', function() {
+        sessionStorage.setItem('pwa_banner_dismissed', '1');
+        banner.remove();
+      });
+      banner.append(message, dismiss);
       document.body.insertBefore(banner, document.body.firstChild);
     }
   })();

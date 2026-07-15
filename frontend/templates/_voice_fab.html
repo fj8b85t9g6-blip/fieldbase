@@ -251,7 +251,7 @@
             if (res.ok) {
                 _employees = await res.json();
                 const sel = document.getElementById('vfab-employee');
-                sel.innerHTML = '<option value="">— Unassigned —</option>';
+                sel.replaceChildren(new Option('— Unassigned —', ''));
                 _employees.forEach(e => {
                     const opt = document.createElement('option');
                     opt.value = e.name;
@@ -360,7 +360,15 @@
         // reset image tab
         document.getElementById('vfab-file-input').value = '';
         document.getElementById('vfab-img-preview').style.display = 'none';
-        document.getElementById('vfab-upload-label').innerHTML = 'Tap to choose a screenshot<br><span style="font-size:12px;color:#9ca3af;">JPG, PNG, or screenshot from camera roll</span>';
+        const uploadLabel = document.getElementById('vfab-upload-label');
+        const uploadHint = document.createElement('span');
+        uploadHint.style.cssText = 'font-size:12px;color:#9ca3af;';
+        uploadHint.textContent = 'JPG, PNG, or screenshot from camera roll';
+        uploadLabel.replaceChildren(
+            document.createTextNode('Tap to choose a screenshot'),
+            document.createElement('br'),
+            uploadHint
+        );
         document.getElementById('vfab-imgextract-btn').disabled = true;
         vfabShowStep('record');
         document.getElementById('vfab-overlay').classList.add('show');
