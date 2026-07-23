@@ -72,7 +72,7 @@
         .modal h2 { font-size: 18px; font-weight: 700; color: #1e3a5f; margin-bottom: 20px; }
         .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
         .form-group label { font-size: 11px; font-weight: 700; color: #5a6a7e; text-transform: uppercase; letter-spacing: 0.5px; }
-        .form-group input, .form-group select, .form-group textarea { background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 6px; padding: 9px 13px; color: #1a1a2e; font-size: 14px; font-family: inherit; outline: none; transition: border 0.2s; }
+        .form-group input, .form-group select, .form-group textarea { background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 6px; padding: 9px 13px; color: #1a1a2e; font-size: 14px; font-family: inherit; transition: border-color 0.2s; }
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.1); }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
@@ -93,6 +93,7 @@
             .modal { padding: 20px 16px; }
         }
     </style>
+    {% include '_app_foundation.html' %}
 </head>
 <body>
 
@@ -107,26 +108,11 @@
     </div>
 </header>
 
-<nav>
-    <a href="/">Dashboard</a>
-    <a href="/calendar" class="active">Calendar</a>
-    <a href="/job-brief">SOW</a>
-    <a href="/invoice">Invoices</a>
-    <a href="/team">Team</a>
-    <a href="/reports">Reports</a>
-    <a href="/receipts">Receipts</a>
-    <a href="/tech-standards">Standards</a>
-    <a href="/work-log">Work Log</a>
-  <a href="/settings">Settings</a>
-</nav>
-  {% if trial_days_left is not none and trial_days_left <= 7 %}
-  <div style="background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 32px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;">
-    <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
-    <a href="/settings" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
-  </div>
-  {% endif %}
+{% set active_page = 'calendar' %}
+{% include '_app_nav.html' %}
 
-<div id="conflict-banner" class="conflict-banner">
+<main id="main-content">
+<div id="conflict-banner" class="conflict-banner" aria-live="polite">
     <strong>Conflict detected —</strong> <span id="conflict-detail"></span>
 </div>
 
@@ -141,8 +127,8 @@
 </div>
 
 <!-- Job Detail Modal -->
-<div id="job-modal" class="modal-overlay">
-    <div class="modal">
+<div id="job-modal" class="modal-overlay" role="presentation">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <h2 id="modal-title"></h2>
         <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
             <div style="font-size:13px;color:#5a6a7e;"><strong style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Platform</strong><span id="modal-platform"></span></div>
@@ -159,16 +145,16 @@
 </div>
 
 <!-- Add / Edit Job Modal -->
-<div id="add-modal" class="modal-overlay">
-    <div class="modal">
+<div id="add-modal" class="modal-overlay" role="presentation">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="add-modal-title">
         <h2 id="add-modal-title">Add Job</h2>
         <div class="form-group">
-            <label>Job Title</label>
-            <input id="job-title" type="text" placeholder="e.g. Network Equipment Install">
+            <label for="job-title">Job Title</label>
+            <input id="job-title" name="job_title" type="text" placeholder="e.g. Network Equipment Install" autocomplete="off">
         </div>
         <div class="form-group">
-            <label>Platform</label>
-            <select id="job-platform">
+            <label for="job-platform">Platform</label>
+            <select id="job-platform" name="platform">
                 <option value="workmarket">WorkMarket</option>
                 <option value="fieldnation">Field Nation</option>
                 <option value="direct">Direct Client</option>
@@ -178,18 +164,18 @@
             </select>
         </div>
         <div class="form-group">
-            <label>Location</label>
-            <input id="job-location" type="text" placeholder="Job site address">
+            <label for="job-location">Location</label>
+            <input id="job-location" name="location" type="text" placeholder="Job site address" autocomplete="street-address">
         </div>
         <div class="form-group">
-            <label>Assigned Employee</label>
-            <select id="job-tech">
+            <label for="job-tech">Assigned Employee</label>
+            <select id="job-tech" name="technician">
                 <option value="">— Unassigned —</option>
             </select>
         </div>
         <div class="form-group">
-            <label>Status</label>
-            <select id="job-status">
+            <label for="job-status">Status</label>
+            <select id="job-status" name="status">
                 <option value="scheduled">Scheduled</option>
                 <option value="on_the_way">On the Way</option>
                 <option value="in_progress">In Progress</option>
@@ -200,37 +186,37 @@
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Employee Pay ($)</label>
-                <input id="job-tech-pay" type="number" step="0.01" min="0" placeholder="0.00">
+                <label for="job-tech-pay">Employee Pay ($)</label>
+                <input id="job-tech-pay" name="technician_pay" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00">
             </div>
             <div class="form-group">
-                <label>Job Value ($)</label>
-                <input id="job-job-pay" type="number" step="0.01" min="0" placeholder="0.00">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Start</label>
-                <input id="job-start" type="datetime-local">
-            </div>
-            <div class="form-group">
-                <label>End</label>
-                <input id="job-end" type="datetime-local">
+                <label for="job-job-pay">Job Value ($)</label>
+                <input id="job-job-pay" name="job_value" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00">
             </div>
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>Client Name</label>
-                <input id="job-client-name" type="text" placeholder="Client name">
+                <label for="job-start">Start</label>
+                <input id="job-start" name="start" type="datetime-local">
             </div>
             <div class="form-group">
-                <label>Client Email</label>
-                <input id="job-client-email" type="email" placeholder="client@email.com">
+                <label for="job-end">End</label>
+                <input id="job-end" name="end" type="datetime-local">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="job-client-name">Client Name</label>
+                <input id="job-client-name" name="client_name" type="text" placeholder="Client name" autocomplete="name">
+            </div>
+            <div class="form-group">
+                <label for="job-client-email">Client Email</label>
+                <input id="job-client-email" name="client_email" type="email" placeholder="client@email.com" autocomplete="email" spellcheck="false">
             </div>
         </div>
         <div class="form-group">
-            <label>Notes</label>
-            <textarea id="job-notes" rows="2" placeholder="Optional notes"></textarea>
+            <label for="job-notes">Notes</label>
+            <textarea id="job-notes" name="notes" rows="2" placeholder="Optional notes…" autocomplete="off"></textarea>
         </div>
         <div class="modal-actions">
             <button class="btn-primary" id="job-save-btn" onclick="saveJob()">Save Job</button>
@@ -394,7 +380,7 @@
         if (!data.title || !data.start || !data.end) { alert('Title, start, and end are required.'); return; }
 
         const btn = document.getElementById('job-save-btn');
-        btn.disabled = true; btn.textContent = 'Saving...';
+        btn.disabled = true; btn.textContent = 'Saving…';
         try {
             const url    = editingJobId ? `/api/jobs/${editingJobId}` : '/api/jobs';
             const method = editingJobId ? 'PUT' : 'POST';
@@ -418,7 +404,7 @@
 
     async function syncPlatforms() {
         const btn = document.getElementById('sync-btn');
-        btn.disabled = true; btn.textContent = '⟳ Syncing...';
+        btn.disabled = true; btn.textContent = '⟳ Syncing…';
         try {
             const res  = await fetch('/api/sync-platform', { method: 'POST' });
             const data = await res.json().catch(() => ({}));
@@ -452,5 +438,6 @@
 </script>
 <div id="sync-toast" class="sync-toast"></div>
 {% include '_voice_fab.html' %}
+</main>
 </body>
 </html>

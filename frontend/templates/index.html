@@ -26,14 +26,14 @@
         header a.signout:hover { color: #fff; }
 
         nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 32px; display: flex; gap: 4px; }
-        nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; transition: all 0.15s; }
+        nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s, background-color 0.15s; }
         nav a:hover { color: #1e3a5f; }
         nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
 
         .container { max-width: 1000px; margin: 28px auto; padding: 0 24px; }
 
         /* Stats */
-        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 24px; }
         .stat-card { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); border-top: 3px solid transparent; }
         .stat-card .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6b7280; margin-bottom: 8px; }
         .stat-card .value { font-size: 34px; font-weight: 700; color: #1e3a5f; line-height: 1; }
@@ -45,7 +45,7 @@
         /* Quick actions */
         .section-title { font-size: 14px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
         .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
-        .action-btn { background: #fff; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 18px; text-decoration: none; color: #1a1a2e; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; transition: all 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+        .action-btn { background: #fff; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 18px; text-decoration: none; color: #1a1a2e; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; transition: border-color 0.15s, box-shadow 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
         .action-btn:hover { border-color: #1e3a5f; box-shadow: 0 4px 12px rgba(30,58,95,0.1); }
         .action-icon { font-size: 24px; }
         .action-title { font-size: 13px; font-weight: 600; }
@@ -96,7 +96,7 @@
         .payment-section .pay-amount-wrap { display: flex; align-items: center; gap: 8px; }
         .payment-section .pay-amount-wrap span { font-size: 13px; color: #6b7280; }
         .payment-section input[type=number] { width: 110px; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
-        .payment-section input[type=number]:focus { outline: none; border-color: #22c55e; }
+        .payment-section input[type=number]:focus-visible { border-color: #22c55e; }
         .payment-section .pay-save-btn { padding: 5px 14px; background: #22c55e; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: auto; }
         .payment-section .pay-save-btn:hover { background: #16a34a; }
         .badge-paid { background: #dcfce7; color: #166534; }
@@ -112,6 +112,24 @@
         .onboarding-step:hover { border-color:#1e3a5f; }
         .onboarding-step.done { background:#f0fdf4; border-color:#bbf7d0; color:#166534; }
         .onboarding-step span:last-child { color:#1e3a5f; }
+        .work-queue { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:28px; }
+        .queue-card { display:flex; align-items:flex-start; gap:12px; min-width:0; padding:16px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; color:#1f2937; text-decoration:none; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease; }
+        .queue-card:hover { transform:translateY(-1px); border-color:#93c5fd; box-shadow:0 5px 16px rgba(30,58,95,0.09); }
+        .queue-card.clear { background:#f8fafc; }
+        .queue-count { display:grid; place-items:center; flex:0 0 34px; height:34px; border-radius:9px; background:#eff6ff; color:#1d4ed8; font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
+        .queue-card.attention .queue-count { background:#fff7ed; color:#c2410c; }
+        .queue-copy { min-width:0; }
+        .queue-copy strong { display:block; margin-bottom:3px; font-size:13px; }
+        .queue-copy span { display:block; color:#64748b; font-size:12px; line-height:1.45; }
+        .activity-toolbar { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:12px; }
+        .activity-toolbar .section-title { margin:0; }
+        .activity-tools { display:flex; gap:8px; min-width:0; }
+        .activity-tools input, .activity-tools select { height:38px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#1f2937; font:inherit; font-size:13px; }
+        .activity-tools input { width:min(260px,42vw); padding:0 11px; }
+        .activity-tools select { padding:0 30px 0 10px; }
+        .job-row[hidden] { display:none; }
+        .job-row-header { width:100%; border:0; background:#fff; text-align:left; color:inherit; font:inherit; }
+        .empty-activity a { display:inline-block; margin-top:10px; color:#1d4ed8; font-weight:700; }
 
         @media (max-width: 720px) {
             .stats { grid-template-columns: 1fr 1fr; }
@@ -123,6 +141,10 @@
             .detail-grid { grid-template-columns: 1fr 1fr; }
             .job-right { gap: 8px; }
             .onboarding-grid { grid-template-columns:1fr; }
+            .work-queue { grid-template-columns:1fr; }
+            .activity-toolbar { align-items:flex-start; flex-direction:column; }
+            .activity-tools { width:100%; }
+            .activity-tools input { flex:1; width:auto; min-width:0; }
         }
         @media (max-width: 480px) {
             .stats { grid-template-columns: 1fr 1fr; }
@@ -133,6 +155,7 @@
             header .company { display: none; }
         }
     </style>
+    {% include '_app_foundation.html' %}
 </head>
 <body>
 
@@ -189,26 +212,10 @@
   })();
 </script>
 
-<nav>
-    <a href="/" class="active">Dashboard</a>
-    <a href="/calendar">Calendar</a>
-    <a href="/job-brief">SOW</a>
-    <a href="/invoice">Invoices</a>
-    <a href="/team">Team</a>
-    <a href="/reports">Reports</a>
-    <a href="/receipts">Receipts</a>
-    <a href="/tech-standards">Standards</a>
-    <a href="/work-log">Work Log</a>
-  <a href="/settings">Settings</a>
-</nav>
-  {% if trial_days_left is not none and trial_days_left <= 7 %}
-  <div style="background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 32px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;">
-    <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
-    <a href="/settings" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
-  </div>
-  {% endif %}
+{% set active_page = 'dashboard' %}
+{% include '_app_nav.html' %}
 
-<div class="container">
+<main class="container" id="main-content">
 
     {% if onboarding_completed < 4 %}
     <section class="onboarding" aria-labelledby="onboarding-title">
@@ -268,7 +275,23 @@
         </div>
     </div>
 
-    <div class="section-title" style="margin-bottom:14px;">Quick Access</div>
+    <div class="section-title" style="margin-bottom:14px;">Next Best Actions</div>
+    <div class="work-queue" aria-label="Priority work queue">
+        <a class="queue-card {% if needs_review %}attention{% else %}clear{% endif %}" href="#field-activity" data-priority-filter="awaiting_review">
+            <span class="queue-count">{{ needs_review|length }}</span>
+            <span class="queue-copy"><strong>Close & Invoice</strong><span>{% if needs_review %}Completed work is waiting for review.{% else %}No completed jobs waiting.{% endif %}</span></span>
+        </a>
+        <a class="queue-card {% if unconfirmed %}attention{% else %}clear{% endif %}" href="#field-activity" data-priority-filter="unconfirmed">
+            <span class="queue-count">{{ unconfirmed|length }}</span>
+            <span class="queue-copy"><strong>Confirm Assignments</strong><span>{% if unconfirmed %}Technicians have not confirmed yet.{% else %}All assignments are confirmed.{% endif %}</span></span>
+        </a>
+        <a class="queue-card {% if conflicts %}attention{% else %}clear{% endif %}" href="/calendar">
+            <span class="queue-count">{{ conflicts|length }}</span>
+            <span class="queue-copy"><strong>Resolve Conflicts</strong><span>{% if conflicts %}Overlapping jobs need attention.{% else %}The schedule is conflict-free.{% endif %}</span></span>
+        </a>
+    </div>
+
+    <div class="section-title" style="margin-bottom:14px;">Create & Manage</div>
     <div class="actions">
         <a href="/calendar" class="action-btn">
             <div class="action-icon">📅</div>
@@ -292,12 +315,26 @@
         </a>
     </div>
 
-    <div class="section-title">Field Activity</div>
-    <div class="activity-grid">
+    <div class="activity-toolbar" id="field-activity">
+        <div class="section-title">Field Activity</div>
+        <div class="activity-tools">
+            <input id="job-search" type="search" placeholder="Search jobs…" aria-label="Search jobs" autocomplete="off">
+            <select id="job-filter" aria-label="Filter jobs by status">
+                <option value="all">All Statuses</option>
+                <option value="attention">Needs Attention</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="in_progress">In Progress</option>
+                <option value="awaiting_review">Needs Review</option>
+                <option value="complete">Complete</option>
+                <option value="unconfirmed">Unconfirmed</option>
+            </select>
+        </div>
+    </div>
+    <div class="activity-grid" id="job-list" aria-live="polite">
         {% if jobs %}
             {% for job in jobs %}
-            <div class="job-row">
-                <div class="job-row-header" onclick="toggleDetail({{ job.id }})">
+            <article class="job-row" data-job-status="{{ 'unconfirmed' if not job.tech_confirmed and job.tech_assigned else job.status }}" data-search="{{ (job.title ~ ' ' ~ (job.location or '') ~ ' ' ~ (job.tech_assigned or '') ~ ' ' ~ (job.client_name or ''))|lower }}">
+                <button type="button" class="job-row-header" onclick="toggleDetail({{ job.id }})" aria-expanded="false" aria-controls="detail-{{ job.id }}">
                     <div class="job-left">
                         <div class="status-dot dot-{% if not job.tech_confirmed and job.tech_assigned %}unconfirmed{% else %}{{ job.status }}{% endif %}"></div>
                         <div>
@@ -333,7 +370,7 @@
                         {% endif %}
                         <span class="chevron" id="chev-{{ job.id }}">▶</span>
                     </div>
-                </div>
+                </button>
 
                 <div class="job-detail" id="detail-{{ job.id }}">
                     <div class="detail-grid">
@@ -432,14 +469,18 @@
                         <button class="pay-save-btn" onclick="savePayment({{ job.id }})">Save</button>
                     </div>
                 </div>
-            </div>
+            </article>
             {% endfor %}
         {% else %}
-            <div class="empty-activity">No jobs yet — add your first job from the Calendar.</div>
+            <div class="empty-activity">
+                <strong>Your schedule is ready.</strong><br>
+                Add a job manually or use voice intake to start running work through FieldBase.
+                <br><a href="/calendar">Schedule Your First Job →</a>
+            </div>
         {% endif %}
     </div>
 
-</div>
+</main>
 
 <script>
     function updateClock() {
@@ -581,10 +622,35 @@
     function toggleDetail(id) {
         const detail = document.getElementById(`detail-${id}`);
         const chev   = document.getElementById(`chev-${id}`);
+        const trigger = document.querySelector(`[aria-controls="detail-${id}"]`);
         const open   = detail.classList.toggle('open');
         chev.classList.toggle('open', open);
+        if (trigger) trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
         if (open) { loadPhotos(id); loadDocs(id); }
     }
+
+    const jobSearch = document.getElementById('job-search');
+    const jobFilter = document.getElementById('job-filter');
+    function filterJobs() {
+        const query = (jobSearch?.value || '').trim().toLowerCase();
+        const filter = jobFilter?.value || 'all';
+        document.querySelectorAll('.job-row').forEach(row => {
+            const status = row.dataset.jobStatus;
+            const statusMatch = filter === 'all'
+                || status === filter
+                || (filter === 'attention' && ['unconfirmed', 'awaiting_review', 'delayed'].includes(status));
+            row.hidden = !statusMatch || !(row.dataset.search || '').includes(query);
+        });
+    }
+    jobSearch?.addEventListener('input', filterJobs);
+    jobFilter?.addEventListener('change', filterJobs);
+    document.querySelectorAll('[data-priority-filter]').forEach(link => {
+        link.addEventListener('click', () => {
+            if (!jobFilter) return;
+            jobFilter.value = link.dataset.priorityFilter;
+            filterJobs();
+        });
+    });
 
     function togglePayField(id) {
         const checked = document.getElementById(`pay-check-${id}`).checked;

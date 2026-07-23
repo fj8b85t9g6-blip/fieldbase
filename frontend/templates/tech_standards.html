@@ -35,7 +35,7 @@
   .card { background: #fff; border-radius: 10px; padding: 28px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); margin-bottom: 20px; }
   .card h2 { font-size: 15px; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
   .card .sub { font-size: 13px; color: #6b7280; margin-bottom: 14px; }
-  textarea { width: 100%; background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 8px; padding: 12px 14px; color: #1a1a2e; font-size: 14px; font-family: inherit; outline: none; transition: border 0.2s; resize: vertical; min-height: 100px; line-height: 1.6; }
+  textarea { width: 100%; background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 8px; padding: 12px 14px; color: #1a1a2e; font-size: 14px; font-family: inherit; transition: border-color 0.2s; resize: vertical; min-height: 100px; line-height: 1.6; }
   textarea:focus { border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.08); background: #fff; }
 
   .btn { background: #1e3a5f; color: #fff; border: none; border-radius: 6px; padding: 11px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
@@ -54,6 +54,7 @@
 
   .last-updated { font-size: 12px; color: #9ca3af; margin-top: 8px; }
 </style>
+{% include '_app_foundation.html' %}
 </head>
 <body>
 <header>
@@ -63,26 +64,10 @@
     <a href="/logout">Sign out</a>
   </div>
 </header>
-<nav>
-  <a href="/">Dashboard</a>
-  <a href="/calendar">Calendar</a>
-  <a href="/job-brief">SOW</a>
-  <a href="/invoice">Invoices</a>
-  <a href="/team">Team</a>
-  <a href="/reports">Reports</a>
-  <a href="/receipts">Receipts</a>
-  <a href="/tech-standards" class="active">Standards</a>
-  <a href="/work-log">Work Log</a>
-  <a href="/settings">Settings</a>
-</nav>
-  {% if trial_days_left is not none and trial_days_left <= 7 %}
-  <div style="background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 32px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;">
-    <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
-    <a href="/settings" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
-  </div>
-  {% endif %}
+{% set active_page = 'standards' %}
+{% include '_app_nav.html' %}
 
-<div class="container">
+<main class="container" id="main-content">
   <div class="page-header">
     <div>
       <div class="page-title">Tech Standards Card</div>
@@ -153,7 +138,7 @@
   </form>
 
   <p class="last-updated">Last updated: {{ std.updated_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
-</div>
+</main>
 {% include '_sync.html' %}
 {% include '_voice_fab.html' %}
 </body>

@@ -1,0 +1,27 @@
+<a class="fb-skip-link" href="#main-content">Skip to Main Content</a>
+<nav class="fb-nav" aria-label="Primary navigation">
+  <div class="fb-nav-group" aria-label="Operations">
+    <a href="/" {% if active_page == 'dashboard' %}class="active" aria-current="page"{% endif %}>Dashboard</a>
+    <a href="/calendar" {% if active_page == 'calendar' %}class="active" aria-current="page"{% endif %}>Schedule</a>
+    <a href="/job-brief" {% if active_page == 'job-brief' %}class="active" aria-current="page"{% endif %}>Job Briefs</a>
+    <a href="/work-log" {% if active_page == 'work-log' %}class="active" aria-current="page"{% endif %}>Work Log</a>
+  </div>
+  <div class="fb-nav-group" aria-label="Money">
+    <a href="/invoice" {% if active_page == 'invoice' %}class="active" aria-current="page"{% endif %}>Invoices</a>
+    <a href="/receipts" {% if active_page == 'receipts' %}class="active" aria-current="page"{% endif %}>Receipts</a>
+    <a href="/reports" {% if active_page == 'reports' %}class="active" aria-current="page"{% endif %}>Reports</a>
+  </div>
+  <div class="fb-nav-group" aria-label="Company">
+    <a href="/team" {% if active_page == 'team' %}class="active" aria-current="page"{% endif %}>Team</a>
+    <a href="/tech-standards" {% if active_page == 'standards' %}class="active" aria-current="page"{% endif %}>Standards</a>
+    {% if current_user.role == 'owner' %}
+    <a href="/settings" {% if active_page in ('settings', 'billing') %}class="active" aria-current="page"{% endif %}>Settings</a>
+    {% endif %}
+  </div>
+</nav>
+{% if trial_days_left is not none and trial_days_left <= 7 %}
+<aside class="fb-trial-banner" aria-label="Trial status">
+  <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
+  <a href="/settings#subscription">View Plans →</a>
+</aside>
+{% endif %}

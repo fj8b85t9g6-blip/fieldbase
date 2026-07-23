@@ -46,7 +46,7 @@
     .features { list-style: none; margin: 0 0 28px; padding: 0; }
     .features li { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #374151; padding: 6px 0; }
     .features li::before { content: '✓'; color: #16a34a; font-weight: 700; font-size: 15px; }
-    .btn { display: inline-block; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; transition: all 0.2s; }
+    .btn { display: inline-block; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; transition: color 0.2s, background-color 0.2s, border-color 0.2s; }
     .btn-primary { background: #1e3a5f; color: #fff; }
     .btn-primary:hover { background: #163055; }
     .btn-outline { background: #fff; color: #1e3a5f; border: 1.5px solid #1e3a5f; }
@@ -63,6 +63,7 @@
       .plan-row { flex-direction: column; align-items: flex-start; gap: 12px; }
     }
   </style>
+  {% include '_app_foundation.html' %}
 </head>
 <body>
   <header>
@@ -72,21 +73,10 @@
       <a href="/logout">Sign Out</a>
     </div>
   </header>
-  <nav>
-    <a href="/">Dashboard</a>
-    <a href="/calendar">Calendar</a>
-    <a href="/job-brief">SOW</a>
-    <a href="/invoice">Invoices</a>
-    <a href="/team">Team</a>
-    <a href="/reports">Reports</a>
-    <a href="/receipts">Receipts</a>
-    <a href="/tech-standards">Standards</a>
-    <a href="/work-log">Work Log</a>
-    <a href="/settings">Settings</a>
-    <a href="/billing" class="active">Billing</a>
-  </nav>
+  {% set active_page = 'billing' %}
+  {% include '_app_nav.html' %}
 
-  <div class="container">
+  <main class="container" id="main-content">
     <h2>Billing</h2>
     <p class="subtitle">Manage your FieldBase subscription</p>
 
@@ -199,7 +189,7 @@
         </div>
       {% endif %}
     </div>
-  </div>
+  </main>
 
   <script>
     const checkoutBtn = document.getElementById('checkout-btn');
@@ -208,7 +198,7 @@
     if (checkoutBtn) {
       checkoutBtn.addEventListener('click', async () => {
         checkoutBtn.disabled = true;
-        checkoutBtn.textContent = 'Loading...';
+        checkoutBtn.textContent = 'Loading…';
         const res  = await fetch('/billing/create-checkout', { method: 'POST' });
         const data = await res.json();
         if (data.url) window.location.href = data.url;
@@ -219,7 +209,7 @@
     if (portalBtn) {
       portalBtn.addEventListener('click', async () => {
         portalBtn.disabled = true;
-        portalBtn.textContent = 'Loading...';
+        portalBtn.textContent = 'Loading…';
         const res  = await fetch('/billing/portal', { method: 'POST' });
         const data = await res.json();
         if (data.url) window.location.href = data.url;
@@ -233,7 +223,7 @@
     if (connectBtn) {
       connectBtn.addEventListener('click', async () => {
         connectBtn.disabled = true;
-        connectBtn.textContent = 'Loading...';
+        connectBtn.textContent = 'Loading…';
         const res  = await fetch('/billing/connect', { method: 'POST' });
         const data = await res.json();
         if (data.url) window.location.href = data.url;
@@ -244,7 +234,7 @@
     if (dashboardBtn) {
       dashboardBtn.addEventListener('click', async () => {
         dashboardBtn.disabled = true;
-        dashboardBtn.textContent = 'Loading...';
+        dashboardBtn.textContent = 'Loading…';
         const res  = await fetch('/billing/connect/dashboard', { method: 'POST' });
         const data = await res.json();
         if (data.url) window.open(data.url, '_blank');

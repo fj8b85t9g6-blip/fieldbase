@@ -32,7 +32,7 @@
   .page-sub { font-size: 14px; color: #6b7280; margin-top: 4px; }
 
   .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-  .filter-bar select { padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; color: #1a1a2e; outline: none; }
+  .filter-bar select { padding: 8px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; color: #1a1a2e; }
   .filter-bar select:focus { border-color: #1e3a5f; }
 
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
@@ -61,6 +61,7 @@
     th, td { padding: 10px 12px; }
   }
 </style>
+{% include '_app_foundation.html' %}
 </head>
 <body>
 <header>
@@ -70,28 +71,10 @@
     <a href="/logout">Sign out</a>
   </div>
 </header>
-<nav>
-  <a href="/">Dashboard</a>
-  <a href="/calendar">Calendar</a>
-  <a href="/job-brief">SOW</a>
-  <a href="/invoice">Invoices</a>
-  <a href="/team">Team</a>
-  <a href="/reports">Reports</a>
-  <a href="/receipts">Receipts</a>
-  <a href="/tech-standards">Standards</a>
-  <a href="/work-log" class="active">Work Log</a>
-  {% if current_user.role == 'owner' %}
-  <a href="/settings">Settings</a>
-  {% endif %}
-</nav>
-  {% if trial_days_left is not none and trial_days_left <= 7 %}
-  <div style="background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 32px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;">
-    <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
-    <a href="/settings" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
-  </div>
-  {% endif %}
+{% set active_page = 'work-log' %}
+{% include '_app_nav.html' %}
 
-<div class="container">
+<main class="container" id="main-content">
   <div class="page-header">
     <div>
       <div class="page-title">Work Log</div>
@@ -168,7 +151,7 @@
       </tbody>
     </table>
   </div>
-</div>
+</main>
 
 <script>
 function filterByEmployee(name) {

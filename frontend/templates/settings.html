@@ -41,12 +41,12 @@
     input[type=checkbox] { width: 16px; height: 16px; accent-color: #1e3a5f; cursor: pointer; }
     .field { margin-bottom: 18px; }
     .field label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-    .field input { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: monospace; outline: none; transition: border-color 0.2s; }
+    .field input { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: monospace; transition: border-color 0.2s; }
     .field input:focus { border-color: #1e3a5f; }
     .field .hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
     .status { font-size: 13px; color: #6b7280; margin-top: 12px; }
     .status.connected { color: #166534; }
-    .apply-link { display: inline-block; margin-top: 14px; font-size: 13px; color: #1e3a5f; font-weight: 600; text-decoration: none; border: 1px solid #1e3a5f; padding: 6px 14px; border-radius: 6px; transition: all 0.2s; }
+    .apply-link { display: inline-block; margin-top: 14px; font-size: 13px; color: #1e3a5f; font-weight: 600; text-decoration: none; border: 1px solid #1e3a5f; padding: 6px 14px; border-radius: 6px; transition: color 0.2s, background-color 0.2s; }
     .apply-link:hover { background: #1e3a5f; color: #fff; }
     button[type=submit] { background: #1e3a5f; color: #fff; border: none; padding: 11px 28px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
     button[type=submit]:hover { background: #163055; }
@@ -73,7 +73,7 @@
     .features { list-style: none; margin: 0 0 28px; padding: 0; }
     .features li { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #374151; padding: 6px 0; }
     .features li::before { content: '✓'; color: #16a34a; font-weight: 700; font-size: 15px; }
-    .btn { display: inline-block; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; transition: all 0.2s; }
+    .btn { display: inline-block; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; text-decoration: none; transition: color 0.2s, background-color 0.2s, border-color 0.2s; }
     .btn-primary { background: #1e3a5f; color: #fff; }
     .btn-primary:hover { background: #163055; }
     .btn-outline { background: #fff; color: #1e3a5f; border: 1.5px solid #1e3a5f; }
@@ -88,6 +88,7 @@
       button[type=submit] { width: 100%; }
     }
   </style>
+  {% include '_app_foundation.html' %}
 </head>
 <body>
   <header>
@@ -97,26 +98,10 @@
       <a href="/logout">Sign Out</a>
     </div>
   </header>
-  <nav>
-    <a href="/">Dashboard</a>
-    <a href="/calendar">Calendar</a>
-    <a href="/job-brief">SOW</a>
-    <a href="/invoice">Invoices</a>
-    <a href="/team">Team</a>
-    <a href="/reports">Reports</a>
-    <a href="/receipts">Receipts</a>
-    <a href="/tech-standards">Standards</a>
-    <a href="/work-log">Work Log</a>
-    <a href="/settings" class="active">Settings</a>
-  </nav>
-  {% if trial_days_left is not none and trial_days_left <= 7 %}
-  <div style="background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 32px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;">
-    <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
-    <a href="/settings" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
-  </div>
-  {% endif %}
+  {% set active_page = 'settings' %}
+  {% include '_app_nav.html' %}
 
-  <div class="container">
+  <main class="container" id="main-content">
     <h2>Settings</h2>
     <p class="subtitle">Manage your platform integrations and company details.</p>
 
@@ -317,7 +302,7 @@
 
       <button type="submit">Save Settings</button>
     </form>
-  </div>
+  </main>
 
   <script>
     const checkoutBtns = document.querySelectorAll('.checkout-btn');
@@ -329,7 +314,7 @@
       checkoutBtn.addEventListener('click', async () => {
         const originalText = checkoutBtn.textContent;
         checkoutBtns.forEach((button) => { button.disabled = true; });
-        checkoutBtn.textContent = 'Loading...';
+        checkoutBtn.textContent = 'Loading…';
         const res  = await fetch('/billing/create-checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -348,7 +333,7 @@
     if (portalBtn) {
       portalBtn.addEventListener('click', async () => {
         portalBtn.disabled = true;
-        portalBtn.textContent = 'Loading...';
+        portalBtn.textContent = 'Loading…';
         const res  = await fetch('/billing/portal', { method: 'POST' });
         const data = await res.json();
         if (data.url) window.location.href = data.url;
@@ -360,7 +345,7 @@
       connectBtn.addEventListener('click', async () => {
         const original = connectBtn.textContent;
         connectBtn.disabled = true;
-        connectBtn.textContent = 'Loading...';
+        connectBtn.textContent = 'Loading…';
         const res  = await fetch('/billing/connect', { method: 'POST' });
         const data = await res.json();
         if (data.url) window.location.href = data.url;
@@ -371,7 +356,7 @@
     if (dashboardBtn) {
       dashboardBtn.addEventListener('click', async () => {
         dashboardBtn.disabled = true;
-        dashboardBtn.textContent = 'Loading...';
+        dashboardBtn.textContent = 'Loading…';
         const res  = await fetch('/billing/connect/dashboard', { method: 'POST' });
         const data = await res.json();
         if (data.url) window.open(data.url, '_blank');

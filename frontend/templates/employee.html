@@ -70,7 +70,7 @@
     .actions { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
     .action-row { display: flex; gap: 10px; }
 
-    .btn { flex: 1; padding: 12px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; text-align: center; }
+    .btn { flex: 1; padding: 12px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: color 0.15s, background-color 0.15s, border-color 0.15s; text-align: center; }
     .btn-confirm   { background: #f59e0b; color: #fff; }
     .btn-confirm:hover   { background: #d97706; }
     .btn-ontheway  { background: #0891b2; color: #fff; }
@@ -95,7 +95,7 @@
 
     .notes-section { padding: 14px 20px; border-top: 1px solid #f3f4f6; }
     .notes-section label { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; display: block; margin-bottom: 6px; }
-    .notes-section textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px 12px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px; outline: none; }
+    .notes-section textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px 12px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px; }
     .notes-section textarea:focus { border-color: #1e3a5f; }
     .btn-save-notes { margin-top: 8px; background: #1e3a5f; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
     .btn-save-notes:hover { background: #163055; }
@@ -107,8 +107,10 @@
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e3a5f; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.3s; z-index: 999; pointer-events: none; }
     .toast.show { opacity: 1; }
   </style>
+  {% include '_app_foundation.html' %}
 </head>
 <body>
+  <a class="fb-skip-link" href="#main-content">Skip to Main Content</a>
   <nav>
     <div class="brand">FieldBase</div>
     <div class="user">
@@ -121,7 +123,7 @@
     </div>
   </nav>
 
-  <div class="container">
+  <main class="container" id="main-content">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
       <h2>My Jobs</h2>
       <div style="display:flex;gap:6px;">
@@ -260,9 +262,9 @@
       </div>
     {% endif %}
     </div><!-- end list-view -->
-  </div>
+  </main>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
     let calInit = false;

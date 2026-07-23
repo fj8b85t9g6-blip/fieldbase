@@ -23,7 +23,7 @@
     header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
     header a:hover { color: #fff; }
     nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 32px; display: flex; gap: 4px; }
-    nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    nav a { padding: 14px 16px; font-size: 14px; font-weight: 500; color: #6b7280; text-decoration: none; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s, background-color 0.15s; }
     nav a:hover { color: #1e3a5f; }
     nav a.active { color: #1e3a5f; border-bottom-color: #1e3a5f; font-weight: 600; }
     .container { max-width: 800px; margin: 32px auto; padding: 0 24px; }
@@ -37,7 +37,7 @@
     .add-card h3 { font-size: 16px; font-weight: 700; color: #1f2937; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #e5e7eb; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
     .field label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-    .field input { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    .field input { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; transition: border-color 0.2s; }
     .field input:focus { border-color: #1e3a5f; }
     .field .hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
     .btn-add { background: #1e3a5f; color: #fff; border: none; padding: 11px 28px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 4px; transition: background 0.2s; }
@@ -55,7 +55,7 @@
     .emp-email { font-size: 13px; color: #6b7280; margin-top: 2px; }
     .emp-meta { font-size: 12px; color: #9ca3af; margin-top: 2px; }
     .rate-wrap { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-    .rate-input { width: 90px; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; outline: none; }
+    .rate-input { width: 90px; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; }
     .rate-input:focus { border-color: #1e3a5f; }
     .rate-save { background: #1e3a5f; color: #fff; border: none; padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; }
     .rate-label { font-size: 12px; color: #6b7280; }
@@ -63,7 +63,7 @@
     .status-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
     .status-badge.active   { background: #dcfce7; color: #166534; }
     .status-badge.inactive { background: #f3f4f6; color: #6b7280; }
-    .btn-toggle { border: 1px solid #d1d5db; background: #fff; color: #374151; padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+    .btn-toggle { border: 1px solid #d1d5db; background: #fff; color: #374151; padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: color 0.15s, background-color 0.15s, border-color 0.15s; }
     .btn-toggle:hover { border-color: #1e3a5f; color: #1e3a5f; }
     .empty { text-align: center; padding: 40px; color: #9ca3af; font-size: 14px; background: #fff; border-radius: 8px; }
 
@@ -79,6 +79,7 @@
       .btn-add { width: 100%; }
     }
   </style>
+  {% include '_app_foundation.html' %}
 </head>
 <body>
 <header>
@@ -88,26 +89,10 @@
     <a href="/logout">Sign Out</a>
   </div>
 </header>
-<nav>
-  <a href="/">Dashboard</a>
-  <a href="/calendar">Calendar</a>
-  <a href="/job-brief">SOW</a>
-  <a href="/invoice">Invoices</a>
-  <a href="/team" class="active">Team</a>
-  <a href="/reports">Reports</a>
-  <a href="/receipts">Receipts</a>
-  <a href="/tech-standards">Standards</a>
-  <a href="/work-log">Work Log</a>
-  <a href="/settings">Settings</a>
-</nav>
-  {% if trial_days_left is not none and trial_days_left <= 7 %}
-  <div style="background:#fef3c7;border-bottom:1px solid #fbbf24;padding:10px 32px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;">
-    <span>{% if trial_days_left == 0 %}Your free trial has ended.{% else %}<strong>{{ trial_days_left }} day{{ 's' if trial_days_left != 1 else '' }}</strong> left in your free trial.{% endif %} Subscribe to keep access.</span>
-    <a href="/settings" style="font-weight:700;color:#92400e;text-decoration:underline;">Subscribe →</a>
-  </div>
-  {% endif %}
+{% set active_page = 'team' %}
+{% include '_app_nav.html' %}
 
-<div class="container">
+<main class="container" id="main-content">
   <h2>Team</h2>
   <p class="subtitle">Add and manage the employees connected to your company.</p>
 
@@ -182,7 +167,7 @@
   {% else %}
     <div class="empty">No employees yet — add your first team member above.</div>
   {% endif %}
-</div>
+</main>
 
 <script>
   async function saveRate(id) {
