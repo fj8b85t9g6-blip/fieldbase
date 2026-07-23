@@ -1457,6 +1457,56 @@ def run_lifecycle_emails():
     return jsonify(_run_lifecycle_emails())
 
 
+@app.route('/internal/release-qa/cleanup-9d21561', methods=['POST'])
+def cleanup_release_qa_9d21561():
+    configured_secret = os.environ.get('FIELD_BASE_CRON_SECRET', '')
+    supplied = request.headers.get('Authorization', '')
+    if not configured_secret or not hmac.compare_digest(
+        supplied,
+        f'Bearer {configured_secret}',
+    ):
+        abort(404)
+
+    target_email = 'fieldbase-release-qa-9d21561@example.test'
+    target_company = 'FieldBase Release QA 9d21561'
+    target_campaign = '9d21561'
+    user = User.query.filter_by(email=target_email).one_or_none()
+    if user is None:
+        return jsonify({'status': 'already_clean'})
+    company = db.session.get(Company, user.company_id)
+    if not company or company.name != target_company:
+        return jsonify({'error': 'identity mismatch'}), 409
+    if Job.query.filter_by(company_id=company.id).count() != 0:
+        return jsonify({'error': 'synthetic company has jobs'}), 409
+
+    if company.stripe_customer_id:
+        for checkout_session in stripe.checkout.Session.list(
+            customer=company.stripe_customer_id,
+            limit=100,
+        ).auto_paging_iter():
+            if checkout_session.status == 'open':
+                stripe.checkout.Session.expire(checkout_session.id)
+        stripe.Customer.delete(company.stripe_customer_id)
+
+    deleted_events = MarketingEvent.query.filter(
+        (MarketingEvent.company_id == company.id)
+        | (MarketingEvent.campaign == target_campaign)
+    ).delete(synchronize_session=False)
+    Conflict.query.filter_by(company_id=company.id).delete(synchronize_session=False)
+    JobDocument.query.filter_by(company_id=company.id).delete(synchronize_session=False)
+    JobPhoto.query.filter_by(company_id=company.id).delete(synchronize_session=False)
+    Receipt.query.filter_by(company_id=company.id).delete(synchronize_session=False)
+    PlatformCredential.query.filter_by(company_id=company.id).delete(synchronize_session=False)
+    TechStandard.query.filter_by(company_id=company.id).delete(synchronize_session=False)
+    User.query.filter_by(company_id=company.id).delete(synchronize_session=False)
+    db.session.delete(company)
+    db.session.commit()
+    return jsonify({
+        'status': 'cleaned',
+        'deleted_events': deleted_events,
+    })
+
+
 # ─────────────────────────────────────────
 # PHOTO ROUTES
 # ─────────────────────────────────────────
