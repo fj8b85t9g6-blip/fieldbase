@@ -2,6 +2,8 @@ import importlib
 import os
 import unittest
 import uuid
+from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import bcrypt
 
@@ -125,6 +127,46 @@ class GrowthFunnelTests(unittest.TestCase):
     def test_lifecycle_runner_is_hidden_without_secret(self):
         response = self.client.post("/internal/lifecycle/run")
         self.assertEqual(response.status_code, 404)
+
+    def test_lifecycle_email_is_behavior_based_and_deduplicated(self):
+        unique = uuid.uuid4().hex[:10]
+        with app.app_context():
+            company = Company(
+                name=f"Lifecycle {unique}",
+                slug=f"lifecycle-{unique}",
+                subscription_status="trialing",
+                trial_ends_at=datetime.utcnow() + timedelta(days=12),
+                created_at=datetime.utcnow() - timedelta(days=2),
+            )
+            db.session.add(company)
+            db.session.flush()
+            owner = User(
+                company_id=company.id,
+                email=f"{unique}@lifecycle.test",
+                password_hash=bcrypt.hashpw(b"password", bcrypt.gensalt()),
+                name="Lifecycle Owner",
+                role="owner",
+            )
+            db.session.add(owner)
+            db.session.commit()
+            company_id = company.id
+
+            with app.test_request_context("/internal/lifecycle/run", method="POST"), patch.object(
+                app_module,
+                "send_email",
+                return_value=True,
+            ) as send:
+                first = app_module._run_lifecycle_emails()
+                second = app_module._run_lifecycle_emails()
+
+            event_count = MarketingEvent.query.filter_by(
+                company_id=company_id,
+                event_name="lifecycle_email_first_job",
+            ).count()
+            self.assertEqual(event_count, 1)
+            self.assertEqual(first["sent"], 1)
+            self.assertEqual(second["sent"], 0)
+            send.assert_called()
 
 
 if __name__ == "__main__":
