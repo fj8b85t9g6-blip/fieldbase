@@ -1,14 +1,21 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, send_from_directory
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, send_from_directory, session, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from sqlalchemy import text
 import bcrypt
 import os
 import smtplib
 import uuid
+import json
+import hmac
+import secrets
 import stripe
+try:
+    from backend.marketing import GUIDES, SEGMENT_PAGES
+except ImportError:
+    from marketing import GUIDES, SEGMENT_PAGES
 try:
     from backend import storage   # Railway: gunicorn backend.app:app
     from backend.transcription import (
@@ -30,6 +37,7 @@ except ImportError:
 
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PRICE_ID      = os.environ.get('STRIPE_PRICE_ID', '')
+STRIPE_ANNUAL_PRICE_ID = os.environ.get('STRIPE_ANNUAL_PRICE_ID', '')
 STRIPE_WEBHOOK_SECRET= os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 # Optional: if Connect events (account.updated, connected checkout.session.completed)
 # are delivered to a SEPARATE webhook endpoint, its signing secret goes here.
@@ -46,7 +54,11 @@ app = Flask(__name__,
     template_folder=os.path.join(_ROOT, 'frontend', 'templates'),
     static_folder=os.path.join(_ROOT, 'frontend', 'static'))
 
-app.secret_key = os.environ.get('SECRET_KEY', 'fieldbase_dev_secret')
+app.secret_key = os.environ.get('SECRET_KEY')
+if not app.secret_key:
+    if os.environ.get('RAILWAY_ENVIRONMENT'):
+        raise RuntimeError('SECRET_KEY must be configured in production.')
+    app.secret_key = secrets.token_hex(32)
 
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://dinx@localhost/fieldbase_saas')
 if DATABASE_URL.startswith('postgres://'):
@@ -77,6 +89,12 @@ class Company(db.Model):
     trial_ends_at          = db.Column(db.DateTime)
     stripe_connect_id       = db.Column(db.String(100))  # connected Express account (collects job payments)
     connect_charges_enabled = db.Column(db.Boolean, default=False)  # true once Stripe onboarding is complete
+    trade_type              = db.Column(db.String(100))
+    acquisition_source      = db.Column(db.String(100))
+    acquisition_medium      = db.Column(db.String(100))
+    acquisition_campaign    = db.Column(db.String(100))
+    acquisition_content     = db.Column(db.String(100))
+    acquisition_landing     = db.Column(db.String(300))
     users                  = db.relationship('User', backref='company', lazy=True)
     jobs                   = db.relationship('Job', backref='company', lazy=True)
 
@@ -198,6 +216,93 @@ class TechStandard(db.Model):
     updated_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class MarketingEvent(db.Model):
+    __tablename__ = 'marketing_events'
+    id          = db.Column(db.Integer, primary_key=True)
+    company_id  = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)
+    visitor_id  = db.Column(db.String(36), index=True)
+    event_name  = db.Column(db.String(80), nullable=False, index=True)
+    source      = db.Column(db.String(100))
+    medium      = db.Column(db.String(100))
+    campaign    = db.Column(db.String(100))
+    content     = db.Column(db.String(100))
+    landing     = db.Column(db.String(300))
+    details     = db.Column(db.Text)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+
+def _bounded(value, limit):
+    value = (value or '').strip()
+    return value[:limit] or None
+
+
+def _visitor_id():
+    if 'marketing_visitor_id' not in session:
+        session['marketing_visitor_id'] = str(uuid.uuid4())
+    return session['marketing_visitor_id']
+
+
+def _capture_attribution():
+    """Keep first-touch acquisition data in the signed session cookie."""
+    attribution = session.get('marketing_attribution')
+    if attribution:
+        return attribution
+    attribution = {
+        'source': _bounded(request.args.get('utm_source'), 100),
+        'medium': _bounded(request.args.get('utm_medium'), 100),
+        'campaign': _bounded(request.args.get('utm_campaign'), 100),
+        'content': _bounded(request.args.get('utm_content'), 100),
+        'landing': _bounded(request.path, 300),
+    }
+    if not any(attribution.get(key) for key in ('source', 'medium', 'campaign', 'content')):
+        attribution['source'] = 'direct'
+        attribution['medium'] = 'none'
+    session['marketing_attribution'] = attribution
+    return attribution
+
+
+def _record_marketing_event(event_name, company_id=None, details=None, once=False):
+    """Record a bounded, first-party funnel event without storing customer content."""
+    try:
+        visitor_id = _visitor_id()
+        if once:
+            query = MarketingEvent.query.filter_by(
+                event_name=event_name,
+                company_id=company_id,
+            )
+            if company_id is None:
+                query = query.filter_by(visitor_id=visitor_id)
+            if query.first():
+                return
+        attribution = session.get('marketing_attribution') or _capture_attribution()
+        if company_id:
+            company = db.session.get(Company, company_id)
+            if company:
+                attribution = {
+                    'source': company.acquisition_source,
+                    'medium': company.acquisition_medium,
+                    'campaign': company.acquisition_campaign,
+                    'content': company.acquisition_content,
+                    'landing': company.acquisition_landing,
+                }
+        event = MarketingEvent(
+            company_id=company_id,
+            visitor_id=visitor_id,
+            event_name=_bounded(event_name, 80),
+            source=_bounded(attribution.get('source'), 100),
+            medium=_bounded(attribution.get('medium'), 100),
+            campaign=_bounded(attribution.get('campaign'), 100),
+            content=_bounded(attribution.get('content'), 100),
+            landing=_bounded(attribution.get('landing'), 300),
+            details=json.dumps(details or {}, separators=(',', ':'))[:2000],
+        )
+        db.session.add(event)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.warning('Marketing event write failed for %s: %s', event_name, exc)
+
+
 
 import math
 
@@ -274,8 +379,14 @@ def inject_trial_info():
         company = Company.query.get(current_user.company_id)
         if company and company.trial_ends_at and company.subscription_status != 'active':
             days_left = max(0, (company.trial_ends_at - datetime.utcnow()).days)
-            return {'trial_days_left': days_left}
-    return {'trial_days_left': None}
+            return {
+                'trial_days_left': days_left,
+                'founding_annual_available': bool(STRIPE_ANNUAL_PRICE_ID),
+            }
+    return {
+        'trial_days_left': None,
+        'founding_annual_available': bool(STRIPE_ANNUAL_PRICE_ID),
+    }
 
 @app.route('/sw.js')
 def service_worker():
@@ -293,11 +404,16 @@ def service_worker():
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+    attribution = _capture_attribution()
+    requested_plan = request.args.get('plan')
+    if requested_plan in ('monthly', 'founding_annual'):
+        session['requested_plan'] = requested_plan
     if request.method == 'POST':
         company_name = request.form.get('company_name', '').strip()
         name         = request.form.get('name', '').strip()
         email        = request.form.get('email', '').strip().lower()
         password     = request.form.get('password', '')
+        trade_type   = request.form.get('trade_type', '').strip()
 
         if not all([company_name, name, email, password]):
             flash('All fields are required.')
@@ -318,7 +434,13 @@ def register():
         company = Company(
             name=company_name, slug=slug,
             subscription_status='trialing',
-            trial_ends_at=datetime.utcnow() + timedelta(days=TRIAL_DAYS)
+            trial_ends_at=datetime.utcnow() + timedelta(days=TRIAL_DAYS),
+            trade_type=_bounded(trade_type, 100),
+            acquisition_source=attribution.get('source'),
+            acquisition_medium=attribution.get('medium'),
+            acquisition_campaign=attribution.get('campaign'),
+            acquisition_content=attribution.get('content'),
+            acquisition_landing=attribution.get('landing'),
         )
         db.session.add(company)
         db.session.flush()
@@ -330,8 +452,17 @@ def register():
         db.session.commit()
 
         login_user(user)
+        _record_marketing_event(
+            'registration_completed',
+            company_id=company.id,
+            details={'trade_type': company.trade_type or 'not_provided'},
+            once=True,
+        )
+        if session.get('requested_plan') == 'founding_annual':
+            return redirect(url_for('settings', plan='founding_annual'))
         return redirect(url_for('index'))
 
+    _record_marketing_event('registration_started', once=True)
     return render_template('register.html')
 
 
@@ -348,6 +479,11 @@ def login():
             login_user(user)
             if user.role == 'employee':
                 return redirect(url_for('employee_dashboard'))
+            _record_marketing_event(
+                'owner_login',
+                company_id=user.company_id,
+                once=True,
+            )
             return redirect(url_for('index'))
 
         flash('Invalid email or password.')
@@ -367,6 +503,8 @@ def logout():
 @app.route('/')
 def index():
     if not current_user.is_authenticated:
+        _capture_attribution()
+        _record_marketing_event('landing_view', once=True)
         return render_template('landing.html')
     if current_user.role == 'employee':
         return redirect(url_for('employee_dashboard'))
@@ -381,10 +519,190 @@ def index():
     unconfirmed  = [j for j in jobs if j.tech_assigned and not j.tech_confirmed and j.status == 'scheduled']
     active       = [j for j in jobs if j.status == 'in_progress']
     needs_review = [j for j in jobs if j.status == 'awaiting_review']
+    employee_count = User.query.filter_by(
+        company_id=current_user.company_id,
+        role='employee',
+        is_active=True,
+    ).count()
+    onboarding = {
+        'employee_added': employee_count > 0,
+        'job_created': len(jobs) > 0,
+        'payouts_connected': bool(company.connect_charges_enabled),
+        'subscribed': company.subscription_status == 'active',
+    }
+    onboarding_completed = sum(1 for value in onboarding.values() if value)
     return render_template('index.html',
         jobs=jobs, conflicts=conflicts, overdue=overdue,
         today=today, unconfirmed=unconfirmed, active=active,
-        needs_review=needs_review, company=current_user.company)
+        needs_review=needs_review, company=current_user.company,
+        onboarding=onboarding,
+        onboarding_completed=onboarding_completed)
+
+
+@app.route('/for/<slug>')
+def segment_page(slug):
+    page = SEGMENT_PAGES.get(slug)
+    if not page:
+        abort(404)
+    _capture_attribution()
+    _record_marketing_event(
+        'segment_page_view',
+        details={'segment': page['source']},
+        once=True,
+    )
+    return render_template(
+        'marketing_page.html',
+        page=page,
+        canonical_url=request.url_root.rstrip('/') + request.path,
+    )
+
+
+@app.route('/guides/<slug>')
+def guide_page(slug):
+    page = GUIDES.get(slug)
+    if not page:
+        abort(404)
+    _capture_attribution()
+    _record_marketing_event(
+        'guide_view',
+        details={'guide': page['source']},
+        once=True,
+    )
+    return render_template(
+        'marketing_page.html',
+        page=page,
+        canonical_url=request.url_root.rstrip('/') + request.path,
+    )
+
+
+@app.route('/tools/double-booking-cost-calculator')
+def double_booking_calculator():
+    _capture_attribution()
+    _record_marketing_event('double_booking_calculator_view', once=True)
+    return render_template(
+        'double_booking_calculator.html',
+        canonical_url=request.url_root.rstrip('/') + request.path,
+    )
+
+
+@app.route('/templates/field-job-template')
+def field_job_template():
+    _capture_attribution()
+    _record_marketing_event('field_job_template_view', once=True)
+    fields = [
+        'Job ID', 'Source', 'Client', 'Location', 'Start', 'End',
+        'Assigned technician', 'Status', 'Scope', 'Job value',
+        'Technician pay', 'Closeout notes', 'Invoice sent', 'Payment received',
+    ]
+    return render_template(
+        'job_template.html',
+        fields=fields,
+        canonical_url=request.url_root.rstrip('/') + request.path,
+    )
+
+
+@app.route('/templates/field-job-template.csv')
+def download_field_job_template():
+    _capture_attribution()
+    _record_marketing_event('field_job_template_downloaded', once=True)
+    headers = (
+        'Job ID,Source,Client,Location,Start,End,Assigned technician,Status,'
+        'Scope,Job value,Technician pay,Closeout notes,Invoice sent,Payment received\n'
+    )
+    response = app.response_class(headers, mimetype='text/csv')
+    response.headers['Content-Disposition'] = 'attachment; filename=field-service-job-template.csv'
+    return response
+
+
+@app.route('/privacy')
+def privacy():
+    sections = [
+        ('What FieldBase processes', [
+            'FieldBase processes account and company information, jobs, schedules, technician assignments, notes, uploaded documents and photos, invoice and payment-status information, and basic first-party product usage events.',
+            'FieldBase analytics records bounded event names and acquisition fields. It does not intentionally copy customer job descriptions, notes, photos, documents, passwords, or payment-card numbers into the marketing event table.',
+        ]),
+        ('Why the data is used', [
+            'Data is used to provide the requested scheduling, dispatch, field documentation, invoicing, payment, account security, support, and product-improvement functions.',
+        ]),
+        ('Service providers', [
+            'FieldBase uses infrastructure and payment providers, including Railway and Stripe. Storage, email, marketplace, and AI extraction providers are used only when the related feature is configured or invoked.',
+            'Payment-card details are collected by Stripe rather than stored directly by FieldBase.',
+        ]),
+        ('Customer choices', [
+            'Account owners control the job and crew information they enter, the integrations they configure, and whether they submit images or voice recordings for extraction. Owners are responsible for having authority to enter employee and client information.',
+        ]),
+        ('Retention and security', [
+            'FieldBase retains operational information while needed to provide the account and for legitimate security, backup, billing, and legal purposes. Reasonable safeguards are used, but no internet service can guarantee absolute security.',
+        ]),
+    ]
+    return render_template(
+        'legal.html',
+        title='Privacy notice',
+        description='How FieldBase processes account, job, billing, and product usage information.',
+        sections=sections,
+        support_email=os.environ.get('FIELD_BASE_SUPPORT_EMAIL'),
+        canonical_url=request.url_root.rstrip('/') + request.path,
+    )
+
+
+@app.route('/terms')
+def terms():
+    sections = [
+        ('Using FieldBase', [
+            'You must provide accurate account information, protect login credentials, and use FieldBase only for lawful field-service operations. Account owners are responsible for the people they invite and the data entered through their company account.',
+        ]),
+        ('Trials, subscriptions, and cancellation', [
+            'The checkout page shows the current price, billing interval, and renewal terms before purchase. A trial does not require a card unless the checkout page explicitly says otherwise.',
+            'Active subscriptions can be managed or canceled through the Stripe billing portal in FieldBase settings. Cancellation stops future renewal; access may continue through the paid billing period. Refund requests are reviewed case by case, subject to applicable law.',
+        ]),
+        ('External services', [
+            'Stripe, marketplace APIs, storage, email, maps, and AI-assisted extraction are external services. Their availability and separate terms can affect the corresponding FieldBase feature.',
+        ]),
+        ('Operational responsibility', [
+            'FieldBase supports scheduling, documentation, invoicing, and payment tracking. Customers remain responsible for job acceptance, staffing, safety, licensing, client approval, invoice accuracy, taxes, and regulatory obligations.',
+        ]),
+        ('Availability and changes', [
+            'FieldBase may change or discontinue features to maintain security, reliability, or product fit. Material subscription changes will be presented through the product or account communications when reasonably possible.',
+        ]),
+    ]
+    return render_template(
+        'legal.html',
+        title='Terms of service',
+        description='Operational terms for FieldBase trials, subscriptions, accounts, and external services.',
+        sections=sections,
+        support_email=os.environ.get('FIELD_BASE_SUPPORT_EMAIL'),
+        canonical_url=request.url_root.rstrip('/') + request.path,
+    )
+
+
+@app.route('/robots.txt')
+def robots_txt():
+    body = 'User-agent: *\nAllow: /\nSitemap: ' + request.url_root.rstrip('/') + '/sitemap.xml\n'
+    return app.response_class(body, mimetype='text/plain')
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    paths = [
+        '/',
+        '/for/workmarket-contractors',
+        '/for/field-nation-contractors',
+        '/for/low-voltage-contractors',
+        '/for/it-field-service',
+        '/for/security-camera-installers',
+        '/for/pos-installers',
+        '/guides/field-service-invoicing',
+        '/guides/prevent-double-booking-field-technicians',
+        '/tools/double-booking-cost-calculator',
+        '/templates/field-job-template',
+        '/privacy',
+        '/terms',
+    ]
+    root = request.url_root.rstrip('/')
+    urls = ''.join(f'<url><loc>{root}{path}</loc></url>' for path in paths)
+    xml = '<?xml version="1.0" encoding="UTF-8"?>' \
+          '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + '</urlset>'
+    return app.response_class(xml, mimetype='application/xml')
 
 
 @app.route('/calendar')
@@ -514,6 +832,22 @@ def add_job():
             job.job_lat, job.job_lng = _geocode_address(job.location)
         db.session.add(job)
         db.session.commit()
+        _record_marketing_event(
+            'first_job_created',
+            company_id=current_user.company_id,
+            details={
+                'entry_method': 'manual',
+                'assigned': bool(job.tech_assigned),
+                'has_client_email': bool(job.client_email),
+            },
+            once=True,
+        )
+        if job.tech_assigned:
+            _record_marketing_event(
+                'first_job_assigned',
+                company_id=current_user.company_id,
+                once=True,
+            )
         try:
             detect_and_save_conflicts(current_user.company_id)
         except Exception as ce:
@@ -530,8 +864,8 @@ def add_job():
         return jsonify({'success': True, 'id': job.id})
     except Exception as e:
         db.session.rollback()
-        app.logger.error(f'add_job error: {e}')
-        return jsonify({'error': str(e)}), 500
+        app.logger.exception('add_job failed')
+        return jsonify({'error': 'Could not save the job. Please try again.'}), 500
 
 
 def _notify_assigned_employee(job):
@@ -629,8 +963,8 @@ def update_job(job_id):
         return jsonify({'success': True, 'id': job.id})
     except Exception as e:
         db.session.rollback()
-        app.logger.error(f'update_job error: {e}')
-        return jsonify({'error': str(e)}), 500
+        app.logger.exception('update_job failed')
+        return jsonify({'error': 'Could not update the job. Please try again.'}), 500
 
 
 @app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
@@ -667,6 +1001,11 @@ def mark_invoice_sent(job_id):
     job.invoice_sent     = True
     job.invoice_sent_at  = datetime.utcnow()
     db.session.commit()
+    _record_marketing_event(
+        'first_invoice_sent',
+        company_id=current_user.company_id,
+        once=True,
+    )
     return jsonify({'success': True})
 
 
@@ -679,6 +1018,12 @@ def update_payment(job_id):
     job.payment_received = data.get('payment_received', False)
     job.amount_paid      = data.get('amount_paid')
     db.session.commit()
+    if job.payment_received:
+        _record_marketing_event(
+            'first_payment_recorded',
+            company_id=current_user.company_id,
+            once=True,
+        )
     return jsonify({'success': True})
 
 # ─────────────────────────────────────────
@@ -714,6 +1059,11 @@ def team():
         )
         db.session.add(employee)
         db.session.commit()
+        _record_marketing_event(
+            'first_employee_added',
+            company_id=current_user.company_id,
+            once=True,
+        )
         flash(f'{name} has been added to your team.')
         return redirect(url_for('team'))
 
@@ -950,6 +1300,11 @@ def complete_job(job_id):
     if not job.clock_out_at:
         job.clock_out_at = datetime.utcnow()
     db.session.commit()
+    _record_marketing_event(
+        'first_job_ready_for_review',
+        company_id=job.company_id,
+        once=True,
+    )
     _notify_owner(job, f'Work Done — {job.title}', f'{current_user.name} finished <strong>{job.title}</strong>. Review and close when ready.')
     return jsonify({'success': True})
 
@@ -963,7 +1318,18 @@ def close_and_invoice(job_id):
     if not job.completed_at:
         job.completed_at = datetime.utcnow()
     db.session.commit()
+    _record_marketing_event(
+        'first_job_completed',
+        company_id=current_user.company_id,
+        once=True,
+    )
     _send_auto_invoice(job)
+    if job.invoice_sent:
+        _record_marketing_event(
+            'first_invoice_sent',
+            company_id=current_user.company_id,
+            once=True,
+        )
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/employee-notes', methods=['POST'])
@@ -1001,6 +1367,94 @@ def send_email(to_addr, subject, html_body):
     except Exception as e:
         app.logger.error(f'Email send failed: {e}')
         return False
+
+
+def _run_lifecycle_emails():
+    """Send at most one behavior-based trial email per eligible company."""
+    now = datetime.utcnow()
+    sent = 0
+    skipped = 0
+    companies = Company.query.filter_by(subscription_status='trialing').all()
+    for company in companies:
+        owner = User.query.filter_by(
+            company_id=company.id,
+            role='owner',
+            is_active=True,
+        ).first()
+        if not owner or not owner.email:
+            skipped += 1
+            continue
+
+        jobs = Job.query.filter_by(company_id=company.id).all()
+        age_days = max(0, (now - company.created_at).days) if company.created_at else 0
+        days_left = (
+            max(0, (company.trial_ends_at - now).days)
+            if company.trial_ends_at else None
+        )
+        email_kind = None
+        subject = None
+        body = None
+
+        if days_left is not None and days_left <= 3:
+            email_kind = 'trial_ending'
+            subject = f'{days_left} day{"s" if days_left != 1 else ""} left in your FieldBase trial'
+            body = (
+                '<p>Your FieldBase trial is nearing its end.</p>'
+                '<p>Open Settings to choose monthly or annual billing and keep your crew workflow active.</p>'
+                '<p><a href="https://getfieldbase.net/settings">Review FieldBase plans</a></p>'
+            )
+        elif not jobs and age_days >= 1:
+            email_kind = 'first_job'
+            subject = 'Schedule your first real job in FieldBase'
+            body = (
+                '<p>Your FieldBase workspace is ready, but it does not have a job yet.</p>'
+                '<p>Add one real upcoming job to see scheduling, technician assignment, and conflict checks in the same workflow.</p>'
+                '<p><a href="https://getfieldbase.net/calendar">Add your first job</a></p>'
+            )
+        elif jobs and not any(job.invoice_sent for job in jobs) and age_days >= 4:
+            email_kind = 'first_invoice'
+            subject = 'Move your first FieldBase job into invoicing'
+            body = (
+                '<p>You have work in FieldBase, but no invoice has been recorded yet.</p>'
+                '<p>Complete and review a real job, then use the owner dashboard to send its invoice or track payment.</p>'
+                '<p><a href="https://getfieldbase.net/">Review your jobs</a></p>'
+            )
+
+        if not email_kind:
+            skipped += 1
+            continue
+
+        event_name = f'lifecycle_email_{email_kind}'
+        if MarketingEvent.query.filter_by(
+            company_id=company.id,
+            event_name=event_name,
+        ).first():
+            skipped += 1
+            continue
+
+        if send_email(owner.email, subject, body):
+            _record_marketing_event(
+                event_name,
+                company_id=company.id,
+                once=True,
+            )
+            sent += 1
+        else:
+            skipped += 1
+
+    return {'sent': sent, 'skipped': skipped}
+
+
+@app.route('/internal/lifecycle/run', methods=['POST'])
+def run_lifecycle_emails():
+    configured_secret = os.environ.get('FIELD_BASE_CRON_SECRET', '')
+    if not configured_secret:
+        abort(404)
+    supplied = request.headers.get('Authorization', '')
+    expected = f'Bearer {configured_secret}'
+    if not hmac.compare_digest(supplied, expected):
+        return jsonify({'error': 'unauthorized'}), 403
+    return jsonify(_run_lifecycle_emails())
 
 
 # ─────────────────────────────────────────
@@ -1246,8 +1700,10 @@ def settings():
             api_secret = request.form.get(f'{platform}_secret', '').strip()
             enabled    = request.form.get(f'{platform}_enabled') == 'on'
             if platform in creds:
-                creds[platform].api_key    = api_key
-                creds[platform].api_secret = api_secret
+                if api_key:
+                    creds[platform].api_key = api_key
+                if api_secret:
+                    creds[platform].api_secret = api_secret
                 creds[platform].enabled    = enabled
                 creds[platform].updated_at = datetime.utcnow()
             else:
@@ -1262,6 +1718,87 @@ def settings():
         flash('Settings saved.')
         return redirect(url_for('settings'))
     return render_template('settings.html', creds=creds, company=current_user.company)
+
+
+@app.route('/growth')
+@login_required
+def growth_dashboard():
+    admin_emails = {
+        email.strip().lower()
+        for email in os.environ.get('FIELD_BASE_ADMIN_EMAILS', '').split(',')
+        if email.strip()
+    }
+    if current_user.email.lower() not in admin_emails:
+        abort(404)
+
+    internal_emails = {
+        email.strip().lower()
+        for email in os.environ.get('FIELD_BASE_INTERNAL_EMAILS', '').split(',')
+        if email.strip()
+    } | admin_emails
+    internal_company_ids = {
+        user.company_id
+        for user in User.query.filter(User.email.in_(internal_emails)).all()
+    } if internal_emails else set()
+
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    events = MarketingEvent.query.order_by(MarketingEvent.created_at.desc()).all()
+    events = [
+        event for event in events
+        if not event.company_id or event.company_id not in internal_company_ids
+    ]
+
+    stages = [
+        ('landing_view', 'Qualified visits', 'visitor'),
+        ('registration_started', 'Registration starts', 'visitor'),
+        ('registration_completed', 'Trials created', 'company'),
+        ('first_job_created', 'First jobs created', 'company'),
+        ('first_job_completed', 'First jobs completed', 'company'),
+        ('first_invoice_sent', 'First invoices sent', 'company'),
+        ('checkout_started', 'Checkout starts', 'company'),
+        ('subscription_activated', 'Paid companies', 'company'),
+    ]
+
+    def stage_count(name, entity, recent=False):
+        matching = [
+            event for event in events
+            if event.event_name == name
+            and (not recent or event.created_at >= cutoff)
+        ]
+        if entity == 'company':
+            return len({event.company_id for event in matching if event.company_id})
+        return len({event.visitor_id for event in matching if event.visitor_id})
+
+    funnel = []
+    previous_all = None
+    previous_30d = None
+    for event_name, label, entity in stages:
+        count_all = stage_count(event_name, entity)
+        count_30d = stage_count(event_name, entity, recent=True)
+        funnel.append({
+            'event_name': event_name,
+            'label': label,
+            'all_time': count_all,
+            'last_30_days': count_30d,
+            'step_rate_all': round(count_all / previous_all * 100, 1) if previous_all else None,
+            'step_rate_30d': round(count_30d / previous_30d * 100, 1) if previous_30d else None,
+        })
+        previous_all = count_all
+        previous_30d = count_30d
+
+    source_counts = {}
+    for event in events:
+        if event.event_name != 'registration_completed' or not event.company_id:
+            continue
+        source = event.source or 'unknown'
+        source_counts[source] = source_counts.get(source, 0) + 1
+
+    return render_template(
+        'growth.html',
+        funnel=funnel,
+        source_counts=sorted(source_counts.items(), key=lambda item: item[1], reverse=True),
+        generated_at=datetime.utcnow(),
+    )
 
 
 # ─────────────────────────────────────────
@@ -1322,8 +1859,8 @@ def image_to_job():
             return jsonify({'error': 'Could not read image content'}), 500
         return jsonify(json.loads(m.group()))
     except Exception as e:
-        app.logger.error(f'image_to_job error: {e}')
-        return jsonify({'error': str(e)}), 500
+        app.logger.exception('image_to_job failed')
+        return jsonify({'error': 'Could not extract job details from that image.'}), 500
 
 
 # ─────────────────────────────────────────
@@ -1745,8 +2282,21 @@ def create_checkout():
     if current_user.role != 'owner':
         return jsonify({'error': 'unauthorized'}), 403
     company = Company.query.get(current_user.company_id)
-    if not STRIPE_PRICE_ID:
+    requested_plan = (request.get_json(silent=True) or {}).get('plan', 'monthly')
+    price_ids = {
+        'monthly': STRIPE_PRICE_ID,
+        'founding_annual': STRIPE_ANNUAL_PRICE_ID,
+    }
+    if requested_plan not in price_ids:
+        return jsonify({'error': 'Unknown billing plan.'}), 400
+    selected_price_id = price_ids[requested_plan]
+    if not selected_price_id:
         return jsonify({'error': 'Billing not configured yet.'}), 500
+    _record_marketing_event(
+        'checkout_started',
+        company_id=current_user.company_id,
+        details={'plan': requested_plan},
+    )
     if not company.stripe_customer_id:
         customer = stripe.Customer.create(
             email=current_user.email,
@@ -1759,7 +2309,7 @@ def create_checkout():
         customer=company.stripe_customer_id,
         payment_method_types=['card'],
         mode='subscription',
-        line_items=[{'price': STRIPE_PRICE_ID, 'quantity': 1}],
+        line_items=[{'price': selected_price_id, 'quantity': 1}],
         allow_promotion_codes=True,
         success_url=request.host_url + 'billing/success',
         cancel_url=request.host_url + 'settings',
@@ -1879,6 +2429,12 @@ def stripe_webhook():
             company.stripe_subscription_id = obj['id']
             company.subscription_status    = obj['status']
             db.session.commit()
+            if obj['status'] == 'active':
+                _record_marketing_event(
+                    'subscription_activated',
+                    company_id=company.id,
+                    once=True,
+                )
     elif event['type'] == 'customer.subscription.deleted':
         company = Company.query.filter_by(stripe_customer_id=obj['customer']).first()
         if company:
@@ -1892,6 +2448,11 @@ def stripe_webhook():
                 job.payment_received = True
                 job.amount_paid      = (obj.get('amount_total') or 0) / 100
                 db.session.commit()
+                _record_marketing_event(
+                    'first_payment_recorded',
+                    company_id=job.company_id,
+                    once=True,
+                )
     elif event['type'] == 'account.updated':
         # A connected (Express) account finished/updated onboarding.
         company = Company.query.filter_by(stripe_connect_id=obj['id']).first()
@@ -1937,6 +2498,12 @@ with app.app_context():
         ('trial_ends_at',          'ALTER TABLE companies ADD COLUMN trial_ends_at TIMESTAMP'),
         ('stripe_connect_id',       'ALTER TABLE companies ADD COLUMN stripe_connect_id VARCHAR(100)'),
         ('connect_charges_enabled', 'ALTER TABLE companies ADD COLUMN connect_charges_enabled BOOLEAN DEFAULT FALSE'),
+        ('trade_type',              'ALTER TABLE companies ADD COLUMN trade_type VARCHAR(100)'),
+        ('acquisition_source',      'ALTER TABLE companies ADD COLUMN acquisition_source VARCHAR(100)'),
+        ('acquisition_medium',      'ALTER TABLE companies ADD COLUMN acquisition_medium VARCHAR(100)'),
+        ('acquisition_campaign',    'ALTER TABLE companies ADD COLUMN acquisition_campaign VARCHAR(100)'),
+        ('acquisition_content',     'ALTER TABLE companies ADD COLUMN acquisition_content VARCHAR(100)'),
+        ('acquisition_landing',     'ALTER TABLE companies ADD COLUMN acquisition_landing VARCHAR(300)'),
         ]:
             try:
                 conn.execute(text(ddl))
@@ -1945,4 +2512,4 @@ with app.app_context():
                 conn.rollback()
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5050)
+    app.run(debug=False, port=5050)

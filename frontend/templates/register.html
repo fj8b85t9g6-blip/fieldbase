@@ -23,8 +23,8 @@
     .flash { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 14px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
     .section-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; margin-top: 20px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
     label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-    input { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 15px; margin-bottom: 16px; outline: none; transition: border-color 0.2s; }
-    input:focus { border-color: #1e3a5f; }
+    input, select { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 15px; margin-bottom: 16px; outline: none; transition: border-color 0.2s; background:#fff; }
+    input:focus, select:focus { border-color: #1e3a5f; }
     button { width: 100%; padding: 12px; background: #1e3a5f; color: #fff; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: background 0.2s; }
     button:hover { background: #163055; }
     .footer { text-align: center; margin-top: 24px; font-size: 14px; color: #6b7280; }
@@ -46,6 +46,16 @@
       <div class="section-label">Your Business</div>
       <label>Company Name</label>
       <input type="text" name="company_name" required placeholder="e.g. Johnson Field Services">
+      <label>Primary Work Type <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+      <select name="trade_type">
+        <option value="">Select your work type</option>
+        <option value="low_voltage">Low-voltage / cabling</option>
+        <option value="it_field_service">IT field service / break-fix</option>
+        <option value="security_cameras">Security / cameras</option>
+        <option value="pos">POS installation / service</option>
+        <option value="general_field_service">General field service</option>
+        <option value="other">Other</option>
+      </select>
 
       <div class="section-label">Owner Account</div>
       <label>Your Name</label>

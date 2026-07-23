@@ -12,7 +12,9 @@
     <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
     <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
-  <title>FieldBase — Field Service Management</title>
+  <title>FieldBase — Job Scheduling & Invoicing for Field-Service Crews</title>
+  <meta name="description" content="FieldBase helps small field-service crews schedule jobs, assign technicians, capture field work, invoice clients, and track payment in one workflow.">
+  <link rel="canonical" href="{{ request.url_root.rstrip('/') }}/">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1f2937; background: #fff; }
@@ -82,6 +84,8 @@
     /* FOOTER */
     footer { background: #0f2340; padding: 28px 48px; text-align: center; }
     footer p { color: #4b6b8a; font-size: 13px; }
+    footer a { color:#8eb6d8; text-decoration:none; margin:0 8px; font-size:13px; }
+    footer a:hover { color:#fff; }
 
     @media (max-width: 768px) {
       .nav { padding: 14px 20px; }
@@ -121,9 +125,9 @@
 
 <!-- HERO -->
 <div class="hero">
-  <div class="hero-tag">Field Service Management</div>
-  <h1>Run Your Field Business Without the Chaos</h1>
-  <p>FieldBase keeps your jobs, techs, and invoices in one place — so you spend less time coordinating and more time getting paid.</p>
+  <div class="hero-tag">For 1–5 person field-service crews</div>
+  <h1>Get Every Field Job From Scheduled to Paid</h1>
+  <p>Keep marketplace jobs, direct work, technician assignments, field proof, invoices, and payment status in one operating view.</p>
   <div class="hero-btns">
     <a href="/register" class="hero-btn-primary">Start 14-Day Free Trial</a>
     <a href="/login" class="hero-btn-secondary">Sign In</a>
@@ -134,20 +138,20 @@
 <!-- STATS -->
 <div class="stats-bar">
   <div class="stat">
-    <div class="num">100%</div>
-    <div class="label">Web-based — no app download</div>
+    <div class="num">One</div>
+    <div class="label">Calendar for every job source</div>
   </div>
   <div class="stat">
-    <div class="num">Real-Time</div>
-    <div class="label">Field activity tracking</div>
+    <div class="num">14 days</div>
+    <div class="label">Free trial — no card required</div>
   </div>
   <div class="stat">
     <div class="num">$200</div>
     <div class="label">Per month, after 14-day free trial</div>
   </div>
   <div class="stat">
-    <div class="num">2 min</div>
-    <div class="label">To get your team set up</div>
+    <div class="num">No seats</div>
+    <div class="label">Flat pricing for the whole crew</div>
   </div>
 </div>
 
@@ -266,7 +270,8 @@
     <div class="section-label" style="text-align:center;">Pricing</div>
     <h2 style="font-size:32px; font-weight:800; color:#1e3a5f; text-align:center; margin-bottom:12px;">Simple, flat pricing</h2>
     <p style="color:#6b7280; font-size:17px; margin-bottom:40px;">One plan. Everything included. No per-seat fees.</p>
-    <div style="background:#fff; border:2px solid #1e3a5f; border-radius:16px; max-width:400px; margin:0 auto; padding:40px 36px; box-shadow:0 4px 24px rgba(30,58,95,0.1);">
+    <div style="display:flex; gap:20px; justify-content:center; align-items:stretch; flex-wrap:wrap;">
+    <div style="background:#fff; border:2px solid #1e3a5f; border-radius:16px; width:400px; max-width:100%; padding:40px 36px; box-shadow:0 4px 24px rgba(30,58,95,0.1);">
       <div style="font-size:48px; font-weight:800; color:#1e3a5f; line-height:1;">$200<span style="font-size:18px; font-weight:500; color:#6b7280;">/month</span></div>
       <div style="font-size:14px; color:#6b7280; margin-top:8px; margin-bottom:28px;">Billed monthly. Cancel anytime.</div>
       <ul class="role-list" style="text-align:left; margin-bottom:32px;">
@@ -281,6 +286,22 @@
       <a href="/register" style="display:block; background:#1e3a5f; color:#fff; padding:16px; border-radius:8px; font-size:16px; font-weight:700; text-decoration:none; transition:background 0.15s;">Start 14-Day Free Trial</a>
       <p style="font-size:13px; color:#9ca3af; margin-top:14px;">No credit card required. Use code <strong>FOUNDER</strong> for 50% off your first 3 months.</p>
     </div>
+    {% if founding_annual_available %}
+    <div style="background:#1e3a5f; border:2px solid #1e3a5f; border-radius:16px; width:400px; max-width:100%; padding:40px 36px; box-shadow:0 4px 24px rgba(30,58,95,0.18); color:#fff;">
+      <div style="font-size:12px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:#bfdbfe; margin-bottom:12px;">Founding annual plan</div>
+      <div style="font-size:48px; font-weight:800; line-height:1;">$1,000<span style="font-size:18px; font-weight:500; color:#bfdbfe;">/year</span></div>
+      <div style="font-size:14px; color:#bfdbfe; margin-top:8px; margin-bottom:28px;">Save $1,400 versus monthly billing.</div>
+      <ul class="role-list" style="text-align:left; margin-bottom:32px;">
+        <li style="color:#fff;">Everything in FieldBase Pro</li>
+        <li style="color:#fff;">Unlimited jobs & crew members</li>
+        <li style="color:#fff;">One annual payment</li>
+        <li style="color:#fff;">14-day free trial before subscribing</li>
+      </ul>
+      <a href="/register?plan=founding_annual" style="display:block; background:#fff; color:#1e3a5f; padding:16px; border-radius:8px; font-size:16px; font-weight:700; text-decoration:none;">Start Free Trial</a>
+      <p style="font-size:13px; color:#bfdbfe; margin-top:14px;">Choose the founding annual plan from Billing after signup.</p>
+    </div>
+    {% endif %}
+    </div>
   </div>
 </div>
 
@@ -293,7 +314,17 @@
 
 <!-- FOOTER -->
 <footer>
-  <p>© 2026 FieldBase. Field Service Management Software.</p>
+  <p style="margin-bottom:12px;">© 2026 FieldBase. Field Service Management Software.</p>
+  <div>
+    <a href="/for/workmarket-contractors">WorkMarket crews</a>
+    <a href="/for/field-nation-contractors">Field Nation crews</a>
+    <a href="/for/low-voltage-contractors">Low-voltage crews</a>
+    <a href="/guides/field-service-invoicing">Invoicing guide</a>
+    <a href="/tools/double-booking-cost-calculator">Conflict calculator</a>
+    <a href="/templates/field-job-template">Job template</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+  </div>
 </footer>
 
 </body>

@@ -1,0 +1,21 @@
+# FieldBase product marketing context
+
+- Initial customer: owner of a 1–5 person field-service crew doing low-voltage, cabling, POS, security/camera, or IT break-fix work.
+- Buying situation: jobs arrive from WorkMarket, Field Nation, direct clients, calls, and screenshots; the owner risks schedule conflicts and delayed invoices.
+- Functional job: move each job from intake to assigned, completed, invoiced, and paid in one workflow.
+- Emotional job: stop carrying the schedule and unpaid paperwork in the owner’s head.
+- Social job: run a reliable crew that looks organized to technicians and clients.
+- Current alternative: paper calendar, texts, spreadsheets, platform inboxes, and manually created invoices.
+- Unique mechanism: one contractor-focused workflow combining rapid job capture, conflict detection, technician execution, and close-to-invoice payment.
+- First-value event: the owner creates and assigns a real first job.
+- Activation event: a real job reaches completed and invoice-sent.
+- Paid outcome: recurring use moves completed work into a client payment path without separate paperwork.
+- Proof asset: working product flow and verified security remediation; external customer conversion and retention are not yet proven.
+- Category entry points: WorkMarket scheduling, Field Nation scheduling, low-voltage crew scheduling, field-service invoicing, contractor job intake.
+- Natural surfaces: search guides, invoice outputs, technician invitations, client payment links, platform integrations, lifecycle reminders.
+- Retention trigger: new job intake and weekly job completion/invoicing.
+- Honest boundary: direct platform sync, voice/image extraction, email delivery, and card payouts depend on configured external services and must not be claimed without live verification.
+- Evidence level: instrumented locally; production journey and repeatable external revenue remain unverified.
+- North star: weekly real jobs completed and invoiced by distinct paying companies.
+- Primary CTA: Start a 14-day free trial.
+- Current experiment: measure landing → registration → first job → completed job → invoice → checkout → active subscription, then improve the largest observed loss.

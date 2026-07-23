@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FieldBase — Growth</title>
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f4f6f9; color:#1f2937; }
+    header { background:#1e3a5f; color:#fff; padding:18px 28px; display:flex; align-items:center; justify-content:space-between; }
+    header a { color:#bfdbfe; text-decoration:none; font-size:14px; }
+    main { max-width:1000px; margin:36px auto; padding:0 20px; }
+    h1 { color:#1e3a5f; margin:0 0 6px; }
+    .sub { color:#6b7280; margin:0 0 24px; }
+    .card { background:#fff; border-radius:10px; padding:24px; box-shadow:0 1px 4px rgba(0,0,0,.08); margin-bottom:24px; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:12px 10px; text-align:right; border-bottom:1px solid #e5e7eb; font-size:14px; }
+    th:first-child, td:first-child { text-align:left; }
+    th { color:#6b7280; font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+    td strong { color:#1e3a5f; }
+    .note { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:8px; padding:14px 16px; font-size:13px; line-height:1.5; }
+    .sources { display:flex; flex-wrap:wrap; gap:10px; }
+    .source { background:#f8fafc; border:1px solid #e5e7eb; border-radius:20px; padding:8px 12px; font-size:13px; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>FieldBase Growth</strong>
+    <a href="/">Back to dashboard</a>
+  </header>
+  <main>
+    <h1>Revenue funnel</h1>
+    <p class="sub">First-party events only. Internal admin accounts are excluded. Updated {{ generated_at.strftime('%Y-%m-%d %H:%M UTC') }}.</p>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Stage</th>
+            <th>All time</th>
+            <th>Step rate</th>
+            <th>Last 30 days</th>
+            <th>30-day step rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stage in funnel %}
+          <tr>
+            <td><strong>{{ stage.label }}</strong></td>
+            <td>{{ stage.all_time }}</td>
+            <td>{{ stage.step_rate_all ~ '%' if stage.step_rate_all is not none else '—' }}</td>
+            <td>{{ stage.last_30_days }}</td>
+            <td>{{ stage.step_rate_30d ~ '%' if stage.step_rate_30d is not none else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;color:#1e3a5f;">Trial sources</h2>
+      <div class="sources">
+        {% for source, count in source_counts %}
+          <div class="source">{{ source }} · <strong>{{ count }}</strong></div>
+        {% else %}
+          <p style="color:#6b7280;">No attributed trials yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="note">
+      Decision rule: improve the largest stage-to-stage loss with one bounded experiment. Do not increase traffic until first-job activation and payment attribution are verified end to end.
+    </div>
+  </main>
+</body>
+</html>

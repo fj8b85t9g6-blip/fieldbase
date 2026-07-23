@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Field Technician Double-Booking Cost Calculator — FieldBase</title>
+  <meta name="description" content="Estimate the direct monthly revenue at risk when a field-service crew double-books technicians.">
+  <link rel="canonical" href="{{ canonical_url }}">
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f4f6f9; color:#1f2937; }
+    nav { background:#fff; border-bottom:1px solid #e5e7eb; padding:18px 28px; display:flex; justify-content:space-between; }
+    nav a { color:#1e3a5f; font-weight:800; text-decoration:none; }
+    main { max-width:820px; margin:50px auto; padding:0 20px; }
+    h1 { color:#1e3a5f; font-size:40px; margin-bottom:12px; }
+    .lead { color:#6b7280; font-size:18px; line-height:1.6; }
+    .card { background:#fff; border-radius:12px; padding:28px; margin-top:30px; box-shadow:0 1px 5px rgba(0,0,0,.08); }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    label { display:block; color:#374151; font-size:13px; font-weight:700; }
+    input { width:100%; margin-top:7px; padding:12px; border:1px solid #d1d5db; border-radius:7px; font-size:16px; }
+    .result { margin-top:24px; padding:22px; background:#eff6ff; border-radius:10px; }
+    .number { font-size:42px; font-weight:900; color:#1e3a5f; }
+    .button { display:inline-block;background:#1e3a5f;color:#fff;padding:13px 22px;border-radius:7px;text-decoration:none;font-weight:700;margin-top:22px; }
+    @media (max-width:650px) { h1 { font-size:32px; } .grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <nav><a href="/">FieldBase</a><a href="/register">Start free trial</a></nav>
+  <main>
+    <h1>Double-booking cost calculator</h1>
+    <p class="lead">Estimate direct revenue at risk from jobs your crew cannot cover. This is a planning estimate, not a promise of savings.</p>
+    <div class="card">
+      <div class="grid">
+        <label>Jobs accepted per month<input id="jobs" type="number" min="0" value="40"></label>
+        <label>Average job value ($)<input id="value" type="number" min="0" value="350"></label>
+        <label>Estimated conflict rate (%)<input id="rate" type="number" min="0" max="100" step="0.1" value="5"></label>
+        <label>Revenue lost per conflicted job (%)<input id="loss" type="number" min="0" max="100" step="1" value="100"></label>
+      </div>
+      <div class="result" aria-live="polite">
+        <div style="color:#6b7280;font-size:13px;font-weight:700;text-transform:uppercase;">Estimated monthly revenue at risk</div>
+        <div class="number" id="result">$0</div>
+        <div id="detail" style="color:#5b6778;"></div>
+      </div>
+      <a class="button" href="/register">Put every job on one calendar</a>
+    </div>
+  </main>
+  <script>
+    const fields = ['jobs', 'value', 'rate', 'loss'].map(id => document.getElementById(id));
+    function calculate() {
+      const [jobs, value, rate, loss] = fields.map(field => Math.max(0, Number(field.value) || 0));
+      const conflicts = jobs * Math.min(rate, 100) / 100;
+      const risk = conflicts * value * Math.min(loss, 100) / 100;
+      document.getElementById('result').textContent = risk.toLocaleString(undefined, {style:'currency', currency:'USD', maximumFractionDigits:0});
+      document.getElementById('detail').textContent = `${conflicts.toFixed(1)} conflicted jobs × ${Math.min(loss, 100).toFixed(0)}% of average job value`;
+    }
+    fields.forEach(field => field.addEventListener('input', calculate));
+    calculate();
+  </script>
+</body>
+</html>

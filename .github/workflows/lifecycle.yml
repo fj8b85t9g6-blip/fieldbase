@@ -1,0 +1,23 @@
+name: FieldBase lifecycle
+
+on:
+  schedule:
+    - cron: "17 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send eligible trial lifecycle emails
+        env:
+          FIELD_BASE_CRON_SECRET: ${{ secrets.FIELD_BASE_CRON_SECRET }}
+        run: |
+          test -n "$FIELD_BASE_CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $FIELD_BASE_CRON_SECRET" \
+            https://getfieldbase.net/internal/lifecycle/run

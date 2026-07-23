@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.title }} — FieldBase</title>
+  <meta name="description" content="{{ page.description }}">
+  <link rel="canonical" href="{{ canonical_url }}">
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:#1f2937; background:#fff; }
+    nav { padding:18px 28px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e5e7eb; }
+    nav a { color:#1e3a5f; text-decoration:none; font-weight:700; }
+    .nav-actions { display:flex; gap:16px; align-items:center; }
+    .button { display:inline-block; background:#1e3a5f; color:#fff; padding:13px 22px; border-radius:7px; text-decoration:none; font-weight:700; }
+    main { max-width:960px; margin:0 auto; padding:72px 24px; }
+    .eyebrow { color:#2563eb; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:14px; }
+    h1 { font-size:48px; line-height:1.08; letter-spacing:-1.2px; color:#1e3a5f; max-width:800px; margin:0 0 22px; }
+    .lead { font-size:20px; color:#5b6778; line-height:1.65; max-width:760px; }
+    .problem { margin:44px 0; padding:22px 24px; background:#f8fafc; border-left:4px solid #1e3a5f; border-radius:0 8px 8px 0; font-size:17px; line-height:1.6; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:34px 0; }
+    .outcome { border:1px solid #e5e7eb; border-radius:10px; padding:20px; line-height:1.55; }
+    .outcome::before { content:'✓'; color:#16a34a; font-weight:900; margin-right:9px; }
+    .boundary { color:#6b7280; font-size:14px; line-height:1.6; border-top:1px solid #e5e7eb; padding-top:22px; }
+    .cta { margin-top:48px; padding:36px; background:#eff6ff; border-radius:14px; text-align:center; }
+    .cta h2 { color:#1e3a5f; margin:0 0 10px; }
+    .cta p { color:#5b6778; margin:0 0 22px; }
+    footer { padding:28px; text-align:center; color:#6b7280; border-top:1px solid #e5e7eb; font-size:13px; }
+    @media (max-width:700px) { h1 { font-size:34px; } main { padding:48px 20px; } .grid { grid-template-columns:1fr; } .nav-actions a:first-child { display:none; } }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">FieldBase</a>
+    <div class="nav-actions">
+      <a href="/login">Sign in</a>
+      <a class="button" href="/register">Start free trial</a>
+    </div>
+  </nav>
+  <main>
+    <div class="eyebrow">{{ page.eyebrow }}</div>
+    <h1>{{ page.title }}</h1>
+    <p class="lead">{{ page.description }}</p>
+
+    {% if page.problem %}
+      <div class="problem">{{ page.problem }}</div>
+      <div class="grid">
+        {% for outcome in page.outcomes %}
+          <div class="outcome">{{ outcome }}</div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="margin-top:44px;">
+        {% for title, body in page.steps %}
+          <section style="display:grid;grid-template-columns:36px 1fr;gap:14px;margin-bottom:26px;">
+            <div style="width:34px;height:34px;border-radius:50%;background:#1e3a5f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;">{{ loop.index }}</div>
+            <div><h2 style="font-size:19px;color:#1e3a5f;margin:3px 0 7px;">{{ title }}</h2><p style="color:#5b6778;line-height:1.6;margin:0;">{{ body }}</p></div>
+          </section>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if page.boundary %}<p class="boundary"><strong>Honest boundary:</strong> {{ page.boundary }}</p>{% endif %}
+    <div class="cta">
+      <h2>{{ page.cta or 'Move your next job from scheduled to paid' }}</h2>
+      <p>Try the complete workflow for 14 days. No card required.</p>
+      <a class="button" href="/register">Start free trial</a>
+    </div>
+  </main>
+  <footer>FieldBase · Field-service job operations for small crews</footer>
+</body>
+</html>

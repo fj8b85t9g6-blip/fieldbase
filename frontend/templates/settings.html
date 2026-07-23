@@ -138,7 +138,7 @@
 
     {% set status = company.subscription_status or 'none' %}
 
-    <h2 class="section-heading">Subscription</h2>
+    <h2 class="section-heading" id="subscription">Subscription</h2>
     <p class="subtitle">Manage your FieldBase plan.</p>
 
     {% if status == 'trialing' and company.trial_ends_at %}
@@ -194,13 +194,18 @@
       {% if status == 'active' %}
         <button class="btn btn-outline" id="portal-btn">Manage Subscription</button>
       {% else %}
-        <button class="btn btn-primary" id="checkout-btn">
+        <button class="btn btn-primary checkout-btn" data-plan="monthly">
           {% if status == 'trialing' %}Subscribe Now{% else %}Reactivate — $200/mo{% endif %}
         </button>
+        {% if founding_annual_available %}
+          <button class="btn btn-outline checkout-btn" data-plan="founding_annual" style="margin-left:8px;">
+            Founding Annual — $1,000/year
+          </button>
+        {% endif %}
       {% endif %}
     </div>
 
-    <h2 class="section-heading">Get Paid</h2>
+    <h2 class="section-heading" id="get-paid">Get Paid</h2>
     <p class="subtitle">Connect your bank so clients pay you directly. Money from job invoices lands in your account — FieldBase never touches it and takes no cut.</p>
 
     <div class="card">
@@ -259,13 +264,15 @@
         <div class="field">
           <label>API Key</label>
           <input type="text" name="workmarket_key" placeholder="Paste your WorkMarket API key" autocomplete="off"
-            value="{{ creds['workmarket'].api_key if 'workmarket' in creds and creds['workmarket'].api_key else '' }}">
+            value="">
+          {% if 'workmarket' in creds and creds['workmarket'].api_key %}<div class="hint">A key is saved. Leave blank to keep it.</div>{% endif %}
           <div class="hint">Found in WorkMarket → Account Settings → API Access</div>
         </div>
         <div class="field">
           <label>API Secret</label>
           <input type="password" name="workmarket_secret" placeholder="Paste your WorkMarket API secret" autocomplete="new-password"
-            value="{{ creds['workmarket'].api_secret if 'workmarket' in creds and creds['workmarket'].api_secret else '' }}">
+            value="">
+          {% if 'workmarket' in creds and creds['workmarket'].api_secret %}<div class="hint">A secret is saved. Leave blank to keep it.</div>{% endif %}
         </div>
         {% if 'workmarket' in creds and creds['workmarket'].api_key %}
           <div class="status connected">✓ Credentials saved — sync will activate once WorkMarket API access is approved</div>
@@ -290,13 +297,15 @@
         <div class="field">
           <label>API Key</label>
           <input type="text" name="fieldnation_key" placeholder="Paste your Field Nation API key" autocomplete="off"
-            value="{{ creds['fieldnation'].api_key if 'fieldnation' in creds and creds['fieldnation'].api_key else '' }}">
+            value="">
+          {% if 'fieldnation' in creds and creds['fieldnation'].api_key %}<div class="hint">A key is saved. Leave blank to keep it.</div>{% endif %}
           <div class="hint">Found in Field Nation → My Profile → API Settings</div>
         </div>
         <div class="field">
           <label>API Secret</label>
           <input type="password" name="fieldnation_secret" placeholder="Paste your Field Nation API secret" autocomplete="new-password"
-            value="{{ creds['fieldnation'].api_secret if 'fieldnation' in creds and creds['fieldnation'].api_secret else '' }}">
+            value="">
+          {% if 'fieldnation' in creds and creds['fieldnation'].api_secret %}<div class="hint">A secret is saved. Leave blank to keep it.</div>{% endif %}
         </div>
         {% if 'fieldnation' in creds and creds['fieldnation'].api_key %}
           <div class="status connected">✓ Credentials saved — sync will activate once Field Nation API access is approved</div>
@@ -311,21 +320,30 @@
   </div>
 
   <script>
-    const checkoutBtn  = document.getElementById('checkout-btn');
+    const checkoutBtns = document.querySelectorAll('.checkout-btn');
     const portalBtn    = document.getElementById('portal-btn');
     const connectBtn   = document.getElementById('connect-btn');
     const dashboardBtn = document.getElementById('dashboard-btn');
 
-    if (checkoutBtn) {
+    checkoutBtns.forEach((checkoutBtn) => {
       checkoutBtn.addEventListener('click', async () => {
-        checkoutBtn.disabled = true;
+        const originalText = checkoutBtn.textContent;
+        checkoutBtns.forEach((button) => { button.disabled = true; });
         checkoutBtn.textContent = 'Loading...';
-        const res  = await fetch('/billing/create-checkout', { method: 'POST' });
+        const res  = await fetch('/billing/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: checkoutBtn.dataset.plan }),
+        });
         const data = await res.json();
         if (data.url) window.location.href = data.url;
-        else { alert(data.error || 'Something went wrong.'); checkoutBtn.disabled = false; }
+        else {
+          alert(data.error || 'Something went wrong.');
+          checkoutBtns.forEach((button) => { button.disabled = false; });
+          checkoutBtn.textContent = originalText;
+        }
       });
-    }
+    });
 
     if (portalBtn) {
       portalBtn.addEventListener('click', async () => {
