@@ -148,6 +148,26 @@
 <div id="add-modal" class="modal-overlay" role="presentation">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="add-modal-title">
         <h2 id="add-modal-title">Add Job</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="job-template">Job Template</label>
+                <select id="job-template" name="template_id" onchange="applyTemplate(this.value)">
+                    <option value="">Start from Scratch</option>
+                    {% for template in templates %}
+                    <option value="{{ template.id }}">{{ template.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="job-client">Saved Client</label>
+                <select id="job-client" name="client_id" onchange="applyClient(this)">
+                    <option value="">Enter Client Manually</option>
+                    {% for client in clients %}
+                    <option value="{{ client.id }}" data-name="{{ client.name }}" data-company="{{ client.company_name or '' }}" data-email="{{ client.email or '' }}" data-address="{{ client.address or '' }}">{{ client.name }}{% if client.company_name %} — {{ client.company_name }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
         <div class="form-group">
             <label for="job-title">Job Title</label>
             <input id="job-title" name="job_title" type="text" placeholder="e.g. Network Equipment Install" autocomplete="off">
@@ -204,6 +224,20 @@
                 <input id="job-end" name="end" type="datetime-local">
             </div>
         </div>
+        <div class="form-row" id="recurring-fields">
+            <div class="form-group">
+                <label for="job-repeat">Repeat</label>
+                <select id="job-repeat" name="repeat" onchange="document.getElementById('job-repeat-count').disabled=!this.value">
+                    <option value="">Does Not Repeat</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="job-repeat-count">Occurrences</label>
+                <input id="job-repeat-count" name="repeat_count" type="number" min="2" max="52" value="4" disabled>
+            </div>
+        </div>
         <div class="form-row">
             <div class="form-group">
                 <label for="job-client-name">Client Name</label>
@@ -213,6 +247,10 @@
                 <label for="job-client-email">Client Email</label>
                 <input id="job-client-email" name="client_email" type="email" placeholder="client@email.com" autocomplete="email" spellcheck="false">
             </div>
+        </div>
+        <div class="form-group">
+            <label for="job-client-company">Client Company</label>
+            <input id="job-client-company" name="client_company" type="text" placeholder="Client company" autocomplete="organization">
         </div>
         <div class="form-group">
             <label for="job-notes">Notes</label>
@@ -325,13 +363,48 @@
         editingJobId = null;
         document.getElementById('add-modal-title').textContent = 'Add Job';
         ['job-title','job-location','job-tech-pay','job-job-pay','job-start','job-end',
-         'job-client-name','job-client-email','job-notes'].forEach(id => {
+         'job-client-name','job-client-email','job-client-company','job-notes'].forEach(id => {
             document.getElementById(id).value = '';
         });
+        document.getElementById('job-template').value = '';
+        document.getElementById('job-client').value = '';
         document.getElementById('job-platform').value = 'workmarket';
         document.getElementById('job-tech').value = '';
         document.getElementById('job-status').value = 'scheduled';
+        document.getElementById('job-repeat').value = '';
+        document.getElementById('job-repeat-count').value = '4';
+        document.getElementById('job-repeat-count').disabled = true;
+        document.getElementById('recurring-fields').style.display = 'grid';
         document.getElementById('add-modal').classList.add('show');
+    }
+
+    async function applyTemplate(templateId) {
+        if (!templateId) return;
+        const response = await fetch(`/api/job-templates/${templateId}`);
+        if (!response.ok) return showSyncToast('Could not load that template.', true);
+        const template = await response.json();
+        document.getElementById('job-title').value = template.title || '';
+        document.getElementById('job-platform').value = template.platform || 'manual';
+        document.getElementById('job-tech-pay').value = template.tech_pay ?? '';
+        document.getElementById('job-job-pay').value = template.job_pay ?? '';
+        document.getElementById('job-notes').value = template.notes || '';
+        const startInput = document.getElementById('job-start');
+        if (startInput.value) {
+            const end = new Date(startInput.value);
+            end.setMinutes(end.getMinutes() + Number(template.duration_minutes || 120));
+            document.getElementById('job-end').value = toLocalInput(end);
+        }
+    }
+
+    function applyClient(select) {
+        const option = select.options[select.selectedIndex];
+        if (!option || !option.value) return;
+        document.getElementById('job-client-name').value = option.dataset.name || '';
+        document.getElementById('job-client-company').value = option.dataset.company || '';
+        document.getElementById('job-client-email').value = option.dataset.email || '';
+        if (!document.getElementById('job-location').value) {
+            document.getElementById('job-location').value = option.dataset.address || '';
+        }
     }
 
     // datetime-local inputs need "YYYY-MM-DDTHH:MM" in local time
@@ -346,6 +419,7 @@
         const p = activeEvent.extendedProps;
         editingJobId = activeJobId;
         document.getElementById('add-modal-title').textContent = 'Edit Job';
+        document.getElementById('recurring-fields').style.display = 'none';
         document.getElementById('job-title').value        = activeEvent.title || '';
         document.getElementById('job-platform').value     = p.platform || 'manual';
         document.getElementById('job-location').value     = p.location || '';
@@ -356,7 +430,10 @@
         document.getElementById('job-start').value        = toLocalInput(activeEvent.start);
         document.getElementById('job-end').value          = toLocalInput(activeEvent.end || activeEvent.start);
         document.getElementById('job-client-name').value  = p.client_name || '';
+        document.getElementById('job-client-company').value = p.client_company || '';
         document.getElementById('job-client-email').value = p.client_email || '';
+        document.getElementById('job-client').value       = p.client_id || '';
+        document.getElementById('job-template').value     = p.template_id || '';
         document.getElementById('job-notes').value        = p.notes || '';
         closeJobModal();
         document.getElementById('add-modal').classList.add('show');
@@ -375,7 +452,12 @@
             end:          document.getElementById('job-end').value,
             notes:        document.getElementById('job-notes').value,
             client_name:  document.getElementById('job-client-name').value,
+            client_company: document.getElementById('job-client-company').value,
             client_email: document.getElementById('job-client-email').value,
+            client_id:    document.getElementById('job-client').value,
+            template_id:  document.getElementById('job-template').value,
+            repeat:       editingJobId ? '' : document.getElementById('job-repeat').value,
+            repeat_count: editingJobId ? 1 : document.getElementById('job-repeat-count').value,
         };
         if (!data.title || !data.start || !data.end) { alert('Title, start, and end are required.'); return; }
 
@@ -391,7 +473,7 @@
                 return;
             }
             document.getElementById('add-modal').classList.remove('show');
-            showSyncToast(editingJobId ? 'Job updated' : 'Job added', false);
+            showSyncToast(editingJobId ? 'Job updated' : (body.created_count > 1 ? `${body.created_count} recurring jobs added` : 'Job added'), false);
             editingJobId = null;
             calendar.refetchEvents();
             await loadConflicts();

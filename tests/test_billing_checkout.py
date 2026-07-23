@@ -63,6 +63,7 @@ class BillingCheckoutTests(unittest.TestCase):
         self.assertEqual(create.call_args.kwargs["line_items"], [
             {"price": "price_monthly", "quantity": 1}
         ])
+        self.assertNotIn("payment_method_types", create.call_args.kwargs)
 
     def test_founding_annual_plan_uses_annual_price(self):
         response, create = self._checkout({"plan": "founding_annual"})

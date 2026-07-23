@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FieldBase — Job Templates</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6f9;color:#172033;min-height:100vh}
+    header{background:#17324f;color:#fff;padding:16px 32px;display:flex;justify-content:space-between;align-items:center}header h1{font-size:20px}header span{color:#bfdbfe;font-size:13px}
+    .container{max-width:1080px;margin:28px auto;padding:0 24px}.page-head{margin-bottom:22px}.page-head h2{font-size:24px;color:#17324f}.page-head p{font-size:14px;color:#64748b;margin-top:5px}
+    .layout{display:grid;grid-template-columns:380px 1fr;gap:20px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(15,23,42,.05)}.card h3{font-size:15px;color:#17324f;margin-bottom:16px}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}label{font-size:12px;font-weight:700;color:#475569}input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:7px;padding:10px 11px;font:inherit;font-size:14px}textarea{resize:vertical;min-height:92px}.check{display:flex;align-items:center;gap:9px;font-size:13px;color:#334155}.check input{width:17px;height:17px}
+    .btn{border:0;border-radius:8px;padding:10px 15px;background:#2563eb;color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer}.btn:hover{background:#1d4ed8}.btn.danger{background:#fff;color:#b91c1c;border:1px solid #fecaca}.btn.danger:hover{background:#fef2f2}.flash{padding:11px 14px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:650}
+    .templates{display:grid;gap:11px}.template{border:1px solid #e2e8f0;border-radius:10px;padding:17px}.template-head{display:flex;justify-content:space-between;gap:12px}.template h4{font-size:15px;color:#17324f}.template-title{font-size:12px;color:#64748b;margin-top:3px}.template-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.pill{padding:4px 8px;background:#f1f5f9;border-radius:999px;font-size:11px;color:#475569;font-weight:700}.checklist{margin:12px 0 0 18px;color:#475569;font-size:12px;line-height:1.7}.empty{text-align:center;padding:46px 20px;color:#64748b}
+    @media(max-width:820px){header{padding:14px 16px}.container{padding:0 12px;margin-top:20px}.layout{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}}
+  </style>
+  {% include '_app_foundation.html' %}
+</head>
+<body>
+<header><h1>FieldBase</h1><span>Reusable Workflows</span></header>
+{% set active_page='job-templates' %}{% include '_app_nav.html' %}
+<main class="container" id="main-content">
+  <div class="page-head"><h2>Job Templates</h2><p>Standardize scope, pricing, duration, and required closeout work.</p></div>
+  {% with messages=get_flashed_messages() %}{% if messages %}<div class="flash" role="status">{{ messages[0] }}</div>{% endif %}{% endwith %}
+  <div class="layout">
+    <section class="card"><h3>Create Template</h3>
+      <form method="POST">
+        <div class="form-grid">
+          <div class="field full"><label for="template-name">Template Name</label><input id="template-name" name="name" required placeholder="POS Install — Standard"></div>
+          <div class="field full"><label for="template-title">Default Job Title</label><input id="template-title" name="title" required placeholder="Install and configure POS workstation"></div>
+          <div class="field"><label for="template-platform">Source</label><select id="template-platform" name="platform"><option value="manual">Manual</option><option value="workmarket">WorkMarket</option><option value="fieldnation">Field Nation</option><option value="direct">Direct Client</option></select></div>
+          <div class="field"><label for="template-duration">Duration (minutes)</label><input id="template-duration" name="duration_minutes" type="number" min="15" step="15" value="120"></div>
+          <div class="field"><label for="template-tech-pay">Technician Pay</label><input id="template-tech-pay" name="default_tech_pay" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field"><label for="template-job-pay">Job Value</label><input id="template-job-pay" name="default_job_pay" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <div class="field full"><label for="template-notes">Scope & Tools</label><textarea id="template-notes" name="notes" placeholder="Scope, tools, access requirements…"></textarea></div>
+          <div class="field full"><label for="template-checklist">Closeout Checklist — 1 Item per Line</label><textarea id="template-checklist" name="checklist" placeholder="Photograph completed installation&#10;Record serial numbers&#10;Test client connectivity"></textarea></div>
+          <label class="check full"><input type="checkbox" name="require_signature"> Require Customer Signature</label>
+        </div>
+        <button class="btn" type="submit" style="margin-top:16px">Save Template</button>
+      </form>
+    </section>
+    <section class="card"><h3>{{ templates|length }} Saved Template{{ 's' if templates|length != 1 else '' }}</h3>
+      {% if templates %}<div class="templates">{% for template in templates %}
+      <article class="template" id="template-{{ template.id }}">
+        <div class="template-head"><div><h4>{{ template.name }}</h4><div class="template-title">{{ template.title }}</div></div><button class="btn danger" type="button" onclick="removeTemplate({{ template.id }})">Delete</button></div>
+        <div class="template-meta"><span class="pill">{{ template.duration_minutes }} min</span><span class="pill">{{ template.platform|capitalize }}</span>{% if template.default_job_pay %}<span class="pill">${{ '%.2f'|format(template.default_job_pay) }}</span>{% endif %}{% if template.require_signature %}<span class="pill">Signature Required</span>{% endif %}</div>
+        {% set items=json_list(template.checklist) %}{% if items %}<ul class="checklist">{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+      </article>{% endfor %}</div>{% else %}<div class="empty">No templates yet. Build one for your most common job type.</div>{% endif %}
+    </section>
+  </div>
+</main>
+<script>async function removeTemplate(id){if(!confirm('Delete this template? Existing jobs will not change.'))return;const response=await fetch(`/api/job-templates/${id}`,{method:'DELETE'});if(response.ok)document.getElementById(`template-${id}`).remove();else alert('Could not delete this template.');}</script>
+{% include '_sync.html' %}{% include '_voice_fab.html' %}
+</body></html>

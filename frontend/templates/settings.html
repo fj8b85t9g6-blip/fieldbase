@@ -234,6 +234,20 @@
     <p class="subtitle">Connect your job platforms.</p>
 
     <form method="POST" action="/settings">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Workflow Automations</div>
+        </div>
+        <label class="toggle" style="display:flex;align-items:flex-start;justify-content:flex-start;gap:12px;margin-bottom:16px;">
+          <input type="checkbox" name="client_notifications_enabled" {% if company.client_notifications_enabled %}checked{% endif %}>
+          <span><strong>Client Dispatch Updates</strong><span class="hint" style="display:block;margin-top:4px;">Email clients when the technician is en route, delayed, onsite, or complete.</span></span>
+        </label>
+        <label class="toggle" style="display:flex;align-items:flex-start;justify-content:flex-start;gap:12px;">
+          <input type="checkbox" name="invoice_reminders_enabled" {% if company.invoice_reminders_enabled %}checked{% endif %}>
+          <span><strong>Automatic Invoice Reminders</strong><span class="hint" style="display:block;margin-top:4px;">Send an overdue payment reminder at most once every 7 days.</span></span>
+        </label>
+      </div>
+
       <!-- WorkMarket -->
       <div class="card">
         <div class="card-header">

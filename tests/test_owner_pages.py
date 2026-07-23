@@ -63,6 +63,8 @@ class OwnerPageTests(unittest.TestCase):
             "/job-brief",
             "/invoice",
             "/team",
+            "/clients",
+            "/job-templates",
             "/reports",
             "/receipts",
             "/tech-standards",

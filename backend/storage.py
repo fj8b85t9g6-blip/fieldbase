@@ -1,6 +1,9 @@
 import os
+import logging
 import boto3
 from botocore.config import Config
+
+logger = logging.getLogger(__name__)
 
 _ROOT = None
 _BUCKET = None
@@ -12,6 +15,7 @@ _LOCAL_URLS = {
     'photos':   '/static/uploads/photos',
     'docs':     '/static/uploads/docs',
     'receipts': '/uploads/receipts',
+    'signatures': '/static/uploads/signatures',
 }
 
 
@@ -28,6 +32,7 @@ def init(root: str):
         'photos':   os.path.join(root, 'frontend', 'static', 'uploads', 'photos'),
         'docs':     os.path.join(root, 'frontend', 'static', 'uploads', 'docs'),
         'receipts': os.path.join(root, 'uploads', 'receipts'),
+        'signatures': os.path.join(root, 'frontend', 'static', 'uploads', 'signatures'),
     }
     if not USE_R2:
         for d in _LOCAL_DIRS.values():
@@ -60,8 +65,8 @@ def delete(folder: str, filename: str):
     if USE_R2:
         try:
             _s3().delete_object(Bucket=_BUCKET, Key=f'{folder}/{filename}')
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning('Could not delete R2 object %s/%s: %s', folder, filename, exc)
     else:
         try:
             os.remove(os.path.join(_LOCAL_DIRS[folder], filename))

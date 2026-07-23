@@ -100,6 +100,15 @@
     .btn-save-notes { margin-top: 8px; background: #1e3a5f; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
     .btn-save-notes:hover { background: #163055; }
     .saved-note { font-size: 13px; color: #374151; line-height: 1.5; background: #f9fafb; padding: 10px 12px; border-radius: 6px; border: 1px solid #e5e7eb; }
+    .closeout { border-top:1px solid #e5e7eb; padding:16px 20px; background:#fbfdff; }
+    .closeout h4 { color:#1e3a5f; font-size:13px; margin-bottom:10px; }
+    .closeout-item { display:flex; align-items:flex-start; gap:9px; padding:7px 0; color:#374151; font-size:13px; }
+    .closeout-item input { width:18px; height:18px; margin-top:1px; flex:0 0 auto; }
+    .signature-box { margin-top:14px; padding-top:13px; border-top:1px dashed #cbd5e1; }
+    .signature-box canvas { width:100%; height:130px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; touch-action:none; }
+    .signature-row { display:flex; gap:8px; margin-top:8px; }
+    .signature-row input { flex:1; min-width:0; border:1px solid #cbd5e1; border-radius:7px; padding:9px; font:inherit; }
+    .signed-badge { color:#166534; background:#dcfce7; border-radius:7px; padding:9px 11px; font-size:12px; font-weight:700; }
 
     .empty { text-align: center; padding: 60px 20px; }
     .empty p { font-size: 16px; color: #9ca3af; }
@@ -190,6 +199,36 @@
           {% if job.clock_in_at %}<span class="active">⏱ Clocked in {{ job.clock_in_at.strftime('%I:%M %p') }}</span>{% endif %}
           {% if job.clock_out_at %}<span>⏹ Clocked out {{ job.clock_out_at.strftime('%I:%M %p') }}</span>{% endif %}
         </div>
+        {% endif %}
+
+        {% set closeout_items = json_list(job.closeout_checklist) %}
+        {% if closeout_items or job.signature_required %}
+        <section class="closeout" aria-labelledby="closeout-title-{{ job.id }}">
+          <h4 id="closeout-title-{{ job.id }}">Required Closeout</h4>
+          <div id="checklist-{{ job.id }}">
+          {% for item in closeout_items %}
+            <label class="closeout-item">
+              <input type="checkbox" data-label="{{ item.get('label','') }}" {% if item.get('done') %}checked{% endif %} onchange="saveCloseout({{ job.id }})">
+              <span>{{ item.get('label','') }}</span>
+            </label>
+          {% endfor %}
+          </div>
+          {% if job.signature_required %}
+          <div class="signature-box">
+            {% if job.signed_at %}
+              <div class="signed-badge">✓ Signed by {{ job.signature_name }} on {{ job.signed_at.strftime('%b %d, %Y at %I:%M %p') }}</div>
+            {% else %}
+              <label for="signer-{{ job.id }}" style="display:block;margin-bottom:6px;">Customer Signature</label>
+              <canvas id="signature-{{ job.id }}" width="640" height="260" aria-label="Customer signature pad"></canvas>
+              <div class="signature-row">
+                <input id="signer-{{ job.id }}" placeholder="Signer’s full name" autocomplete="name">
+                <button class="btn-save-notes" type="button" onclick="clearSignature({{ job.id }})">Clear</button>
+                <button class="btn-save-notes" type="button" onclick="saveSignature({{ job.id }})">Save Signature</button>
+              </div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </section>
         {% endif %}
 
         <div class="divider"></div>
@@ -371,6 +410,68 @@
         });
     });
 
+    document.querySelectorAll('canvas[id^="signature-"]').forEach(canvas => {
+      const ctx = canvas.getContext('2d');
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#17324f';
+      let drawing = false;
+      const point = event => {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (event.clientX - rect.left) * canvas.width / rect.width,
+          y: (event.clientY - rect.top) * canvas.height / rect.height,
+        };
+      };
+      canvas.addEventListener('pointerdown', event => {
+        drawing = true;
+        canvas.setPointerCapture(event.pointerId);
+        const p = point(event);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      });
+      canvas.addEventListener('pointermove', event => {
+        if (!drawing) return;
+        const p = point(event);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      });
+      canvas.addEventListener('pointerup', () => { drawing = false; });
+      canvas.addEventListener('pointercancel', () => { drawing = false; });
+    });
+
+    async function saveCloseout(jobId) {
+      const checklist = [...document.querySelectorAll(`#checklist-${jobId} input[type="checkbox"]`)]
+        .map(input => ({label: input.dataset.label, done: input.checked}));
+      const response = await fetch(`/api/jobs/${jobId}/closeout`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({checklist})
+      });
+      const data = await response.json();
+      showToast(response.ok ? 'Closeout checklist saved' : (data.error || 'Could not save checklist'));
+    }
+
+    function clearSignature(jobId) {
+      const canvas = document.getElementById(`signature-${jobId}`);
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    async function saveSignature(jobId) {
+      const canvas = document.getElementById(`signature-${jobId}`);
+      const signer = document.getElementById(`signer-${jobId}`).value.trim();
+      if (!signer) return showToast('Enter the signer’s full name');
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const form = new FormData();
+      form.append('signer_name', signer);
+      form.append('signature', blob, 'signature.png');
+      const response = await fetch(`/api/jobs/${jobId}/signature`, {method:'POST',body:form});
+      const data = await response.json();
+      if (!response.ok) return showToast(data.error || 'Could not save signature');
+      showToast('Customer signature saved');
+      setTimeout(() => location.reload(), 700);
+    }
+
     function showToast(msg) {
       const t = document.getElementById('toast');
       t.textContent = msg;
@@ -426,6 +527,8 @@
           if (data.success) {
             showToast(actionLabel(action));
             setTimeout(() => location.reload(), 800);
+          } else {
+            showToast(data.error || 'Could not update the job');
           }
         });
     }

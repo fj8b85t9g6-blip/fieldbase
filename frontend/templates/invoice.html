@@ -1,364 +1,218 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#1e3a5f">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="FieldBase">
-    <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
-    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
-<title>FieldBase — Invoice Generator</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', sans-serif; background: #f4f6f9; color: #1a1a2e; min-height: 100vh; }
-  header { background: #1e3a5f; padding: 18px 40px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
-  header h1 { font-size: 22px; color: #ffffff; font-weight: 700; letter-spacing: 1px; }
-  header span { color: #a8c4e0; font-size: 14px; }
-  .header-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
-  .container { max-width: 900px; margin: 32px auto; padding: 0 20px; }
-  .card { background: #ffffff; border: 1px solid #dde3ec; border-radius: 10px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-  .card h2 { color: #1e3a5f; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e8edf4; }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .form-group { display: flex; flex-direction: column; gap: 6px; }
-  .form-group.full { grid-column: 1 / -1; }
-  label { font-size: 12px; color: #5a6a7e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-  input, select, textarea { background: #f9fafc; border: 1px solid #d0d7e3; border-radius: 6px; padding: 9px 13px; color: #1a1a2e; font-size: 14px; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s; }
-  input:focus, select:focus, textarea:focus { border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,0.1); background: #fff; }
-  textarea { resize: vertical; min-height: 70px; }
-  .btn { background: #1e3a5f; color: #ffffff; border: none; border-radius: 6px; padding: 11px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-  .btn:hover { background: #16304f; }
-  .btn-secondary { background: #ffffff; color: #1e3a5f; border: 1.5px solid #1e3a5f; }
-  .btn-secondary:hover { background: #f0f4f9; }
-  .btn-danger { background: #ffffff; color: #c62828; border: 1.5px solid #c62828; }
-  .btn-danger:hover { background: #fdecea; }
-  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
-
-  .status-badge { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-  .status-draft   { background: #f0f4f9; color: #5a6a7e; }
-  .status-sent    { background: #e3f2fd; color: #1565c0; }
-  .status-paid    { background: #e8f5e9; color: #2e7d32; }
-  .status-overdue { background: #fdecea; color: #c62828; }
-
-  .line-items { width: 100%; border-collapse: collapse; }
-  .line-items th { text-align: left; font-size: 11px; color: #5a6a7e; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 10px; border-bottom: 2px solid #e8edf4; font-weight: 700; }
-  .line-items td { padding: 8px 6px; vertical-align: middle; border-bottom: 1px solid #f0f4f9; }
-  .line-items td input { padding: 7px 10px; font-size: 13px; }
-  .remove-row { background: none; border: none; color: #c62828; cursor: pointer; font-size: 20px; padding: 0 4px; line-height: 1; font-weight: 300; }
-  .remove-row:hover { color: #8b0000; }
-
-  .totals { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e8edf4; }
-  .total-row { display: flex; gap: 48px; font-size: 14px; }
-  .total-row span:first-child { color: #5a6a7e; }
-  .total-row.grand { font-size: 18px; font-weight: 700; color: #1e3a5f; border-top: 2px solid #1e3a5f; padding-top: 10px; margin-top: 4px; }
-
-  /* Preview */
-  #preview { display: none; }
-  #preview.visible { display: block; }
-  .preview-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #e8edf4; }
-  .preview-logo { font-size: 26px; font-weight: 900; color: #1e3a5f; letter-spacing: 2px; }
-  .preview-meta { text-align: right; color: #5a6a7e; font-size: 13px; line-height: 1.9; }
-  .preview-meta strong { color: #1a1a2e; }
-  .preview-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 28px; }
-  .preview-party h4 { font-size: 11px; color: #5a6a7e; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 8px; }
-  .preview-party p { font-size: 14px; line-height: 1.7; color: #1a1a2e; }
-  .preview-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  .preview-table th { background: #f4f6f9; text-align: left; padding: 10px 14px; font-size: 12px; color: #5a6a7e; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
-  .preview-table td { padding: 12px 14px; border-bottom: 1px solid #e8edf4; font-size: 14px; color: #1a1a2e; }
-  .preview-table td:last-child, .preview-table th:last-child { text-align: right; }
-  .preview-totals { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-  .preview-total-row { display: flex; gap: 60px; font-size: 14px; }
-  .preview-total-row span:first-child { color: #5a6a7e; }
-  .preview-total-row.grand { font-size: 20px; font-weight: 700; color: #1e3a5f; border-top: 2px solid #1e3a5f; padding-top: 10px; margin-top: 6px; }
-  .preview-notes { margin-top: 28px; padding-top: 18px; border-top: 1px solid #e8edf4; font-size: 13px; color: #5a6a7e; line-height: 1.7; }
-
-  @media print {
-    body { background: #fff; }
-    header, .card:not(#preview-card), .btn-row, select { display: none !important; }
-    #preview { display: block !important; }
-    .card { border: none; box-shadow: none; padding: 0; }
-  }
-  @media (max-width: 720px) {
-    header { padding: 14px 16px; }
-    .container { padding: 0 12px; margin-top: 20px; }
-    .card { padding: 16px; }
-    .header-right { gap: 6px; }
-  }
-  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
-</style>
-{% include '_app_foundation.html' %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#17324f">
+  <title>FieldBase — Invoices</title>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f4f6f9; color:#172033; min-height:100vh; }
+    header { background:#17324f; padding:16px 32px; display:flex; align-items:center; justify-content:space-between; color:#fff; }
+    header h1 { font-size:20px; }
+    header p { color:#bfdbfe; font-size:13px; margin-top:3px; }
+    .container { max-width:1120px; margin:28px auto; padding:0 24px; }
+    .page-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:22px; }
+    .page-head h2 { color:#17324f; font-size:24px; }
+    .page-head p { color:#64748b; font-size:14px; margin-top:5px; }
+    .btn { border:0; border-radius:8px; padding:10px 16px; background:#2563eb; color:#fff; font:inherit; font-size:13px; font-weight:700; cursor:pointer; transition:background-color 150ms ease; }
+    .btn:hover { background:#1d4ed8; }
+    .btn.secondary { background:#fff; color:#17324f; border:1px solid #cbd5e1; }
+    .btn.secondary:hover { background:#f8fafc; }
+    .btn.small { padding:7px 10px; font-size:12px; }
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+    .stat { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:18px; }
+    .stat span { display:block; color:#64748b; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; }
+    .stat strong { display:block; color:#17324f; font-size:27px; margin-top:7px; font-variant-numeric:tabular-nums; }
+    .panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,.05); margin-bottom:22px; overflow:hidden; }
+    .panel-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:17px 20px; border-bottom:1px solid #e2e8f0; }
+    .panel-head h3 { color:#17324f; font-size:15px; }
+    .create-form { display:none; padding:20px; }
+    .create-form.open { display:block; }
+    .form-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field.full { grid-column:1/-1; }
+    label { color:#475569; font-size:12px; font-weight:700; }
+    input,select,textarea { width:100%; border:1px solid #cbd5e1; border-radius:7px; padding:10px 11px; background:#fff; color:#172033; font:inherit; font-size:14px; }
+    textarea { resize:vertical; min-height:78px; }
+    .form-actions { display:flex; gap:9px; margin-top:16px; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; }
+    th { padding:11px 14px; background:#f8fafc; color:#64748b; font-size:11px; text-align:left; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; }
+    td { padding:14px; border-top:1px solid #eef2f7; font-size:13px; color:#334155; vertical-align:middle; }
+    .number { color:#17324f; font-weight:800; }
+    .money { font-weight:750; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .status { display:inline-flex; padding:4px 9px; border-radius:999px; font-size:11px; font-weight:800; text-transform:uppercase; }
+    .status-draft { background:#f1f5f9; color:#475569; }
+    .status-sent { background:#dbeafe; color:#1d4ed8; }
+    .status-overdue { background:#fee2e2; color:#b91c1c; }
+    .status-paid { background:#dcfce7; color:#166534; }
+    .status-partial { background:#fef3c7; color:#92400e; }
+    .actions { display:flex; gap:6px; flex-wrap:wrap; min-width:210px; }
+    .empty { padding:42px 20px; text-align:center; color:#64748b; }
+    .empty strong { display:block; color:#334155; margin-bottom:5px; }
+    .feedback { min-height:20px; margin-top:12px; font-size:13px; font-weight:650; }
+    .feedback.error { color:#b91c1c; }
+    .feedback.success { color:#166534; }
+    @media(max-width:800px) {
+      header { padding:14px 16px; }
+      .container { padding:0 12px; margin-top:20px; }
+      .stats { grid-template-columns:1fr 1fr; }
+      .form-grid { grid-template-columns:1fr; }
+      .page-head { align-items:stretch; flex-direction:column; }
+    }
+  </style>
+  {% include '_app_foundation.html' %}
 </head>
 <body>
 <header>
-  <h1>FieldBase</h1>
-  <span>/ Invoice Generator</span>
-  <div class="header-right">
-    <span id="current-status" class="status-badge status-draft">Draft</span>
-    <select id="status-select" style="width:110px;" onchange="updateStatus(this.value)">
-      <option value="draft">Draft</option>
-      <option value="sent">Sent</option>
-      <option value="paid">Paid</option>
-      <option value="overdue">Overdue</option>
-    </select>
-  </div>
+  <div><h1>FieldBase</h1><p>Invoice Center</p></div>
+  <a href="/reports" style="color:#dbeafe;font-size:13px;font-weight:700;text-decoration:none;">View Reports →</a>
 </header>
 {% set active_page = 'invoice' %}
 {% include '_app_nav.html' %}
 
 <main class="container" id="main-content">
-
-  <div class="card">
-    <h2>Invoice Details</h2>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Invoice Number</label>
-        <input type="text" id="inv-number" placeholder="INV-001" />
-      </div>
-      <div class="form-group">
-        <label>Invoice Date</label>
-        <input type="date" id="inv-date" />
-      </div>
-      <div class="form-group">
-        <label>Due Date</label>
-        <input type="date" id="inv-due" />
-      </div>
-      <div class="form-group">
-        <label>PO / Job Reference</label>
-        <input type="text" id="inv-ref" placeholder="Job # or PO #" />
-      </div>
-    </div>
+  <div class="page-head">
+    <div><h2>Invoices</h2><p>Create, send, remind, and record payment without leaving FieldBase.</p></div>
+    <button class="btn" type="button" id="show-create">+ New Invoice</button>
   </div>
 
-  <div class="card">
-    <h2>Parties</h2>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>From (Your Business)</label>
-        <textarea id="from-info" rows="4" placeholder="Your Name / Company&#10;Address&#10;Phone&#10;Email"></textarea>
-      </div>
-      <div class="form-group">
-        <label>Bill To (Client)</label>
-        <textarea id="to-info" rows="4" placeholder="Client Name / Company&#10;Address&#10;Phone&#10;Email"></textarea>
-      </div>
-    </div>
-  </div>
+  <section class="stats" aria-label="Invoice summary">
+    <div class="stat"><span>Total Invoices</span><strong>{{ invoices|length }}</strong></div>
+    <div class="stat"><span>Outstanding</span><strong>${{ '%.0f'|format(outstanding) }}</strong></div>
+    <div class="stat"><span>Overdue</span><strong>{{ overdue_count }}</strong></div>
+    <div class="stat"><span>Collected</span><strong>${{ '%.0f'|format(paid_total) }}</strong></div>
+  </section>
 
-  <div class="card">
-    <h2>Line Items</h2>
-    <table class="line-items">
-      <thead>
-        <tr>
-          <th style="width:42%">Description</th>
-          <th style="width:13%">Qty</th>
-          <th style="width:20%">Unit Price</th>
-          <th style="width:20%">Total</th>
-          <th style="width:5%"></th>
-        </tr>
-      </thead>
-      <tbody id="line-items-body"></tbody>
-    </table>
-    <div class="btn-row" style="margin-top:14px;">
-      <button class="btn btn-secondary" onclick="addLineItem()">+ Add Line Item</button>
-    </div>
-    <div class="totals">
-      <div class="total-row"><span>Subtotal</span><span id="subtotal">$0.00</span></div>
-      <div class="total-row">
-        <span>Tax (<input type="number" id="tax-rate" value="0" min="0" max="100" step="0.1"
-          style="width:46px;padding:2px 6px;display:inline;font-size:13px;"> %)</span>
-        <span id="tax-amount">$0.00</span>
-      </div>
-      <div class="total-row grand"><span>Total Due</span><span id="grand-total">$0.00</span></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Notes / Payment Terms</h2>
-    <textarea id="inv-notes" rows="3" placeholder="Payment due within 30 days. Make checks payable to…"></textarea>
-  </div>
-
-  <div class="btn-row" style="margin-bottom: 40px;">
-    <button class="btn" onclick="showPreview()">Preview Invoice</button>
-    <button class="btn btn-secondary" onclick="window.print()">Print / Save PDF</button>
-    <button class="btn btn-secondary" onclick="saveInvoice()">Save</button>
-    <button class="btn btn-danger" onclick="clearForm()">Clear</button>
-  </div>
-
-  <div class="card" id="preview-card">
-    <h2>Preview</h2>
-    <div id="preview">
-      <div class="preview-header">
-        <div class="preview-logo" id="p-from-name">FIELDBASE</div>
-        <div class="preview-meta">
-          <div><strong>Invoice #</strong> <span id="p-inv-number">—</span></div>
-          <div><strong>Date</strong> <span id="p-inv-date">—</span></div>
-          <div><strong>Due</strong> <span id="p-inv-due">—</span></div>
-          <div><strong>Ref</strong> <span id="p-inv-ref">—</span></div>
+  <section class="panel">
+    <div class="panel-head"><h3>Create Invoice</h3><span style="font-size:12px;color:#64748b;">Use a job or enter a custom charge</span></div>
+    <form class="create-form" id="invoice-form">
+      <div class="form-grid">
+        <div class="field full">
+          <label for="invoice-job">Completed or Scheduled Job</label>
+          <select id="invoice-job" name="job_id">
+            <option value="">Custom Invoice</option>
+            {% for job in jobs %}
+            <option value="{{ job.id }}">{{ job.title }} — {{ job.start_time.strftime('%b %d') }}{% if job.job_pay %} — ${{ '%.2f'|format(job.job_pay) }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="invoice-client">Client</label>
+          <select id="invoice-client" name="client_id">
+            <option value="">Select Client</option>
+            {% for client in clients %}
+            <option value="{{ client.id }}">{{ client.name }}{% if client.company_name %} — {{ client.company_name }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="invoice-description">Description</label>
+          <input id="invoice-description" name="description" placeholder="Service call…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="invoice-amount">Amount</label>
+          <input id="invoice-amount" name="unit_price" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field">
+          <label for="invoice-tax">Tax Rate (%)</label>
+          <input id="invoice-tax" name="tax_rate" type="number" min="0" max="100" step="0.1" inputmode="decimal" value="0">
+        </div>
+        <div class="field">
+          <label for="invoice-due">Payment Terms</label>
+          <select id="invoice-due" name="due_days"><option value="0">Due on Receipt</option><option value="15">Net 15</option><option value="30" selected>Net 30</option><option value="60">Net 60</option></select>
+        </div>
+        <div class="field full">
+          <label for="invoice-notes">Notes</label>
+          <textarea id="invoice-notes" name="notes" placeholder="Payment instructions or job details…"></textarea>
         </div>
       </div>
-      <div class="preview-parties">
-        <div class="preview-party">
-          <h4>From</h4>
-          <p id="p-from-info"></p>
-        </div>
-        <div class="preview-party">
-          <h4>Bill To</h4>
-          <p id="p-to-info"></p>
-        </div>
+      <div class="form-actions">
+        <button class="btn" type="submit">Save Draft</button>
+        <button class="btn secondary" type="button" id="cancel-create">Cancel</button>
       </div>
-      <table class="preview-table">
-        <thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
-        <tbody id="p-line-items"></tbody>
+      <div class="feedback" id="create-feedback" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section class="panel" aria-labelledby="invoice-list-title">
+    <div class="panel-head"><h3 id="invoice-list-title">Invoice Ledger</h3><span style="font-size:12px;color:#64748b;">{{ invoices|length }} record{{ 's' if invoices|length != 1 else '' }}</span></div>
+    {% if invoices %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Invoice</th><th>Client</th><th>Due</th><th>Status</th><th>Total</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for invoice in invoices %}
+          <tr id="invoice-row-{{ invoice.id }}">
+            <td><span class="number">{{ invoice.number }}</span>{% if invoice.job_id %}<br><span style="color:#94a3b8;font-size:11px;">Job #{{ invoice.job_id }}</span>{% endif %}</td>
+            <td>{{ invoice.client_company or invoice.client_name or 'Unassigned' }}{% if invoice.client_email %}<br><span style="color:#64748b;font-size:11px;">{{ invoice.client_email }}</span>{% endif %}</td>
+            <td>{{ invoice.due_date.strftime('%b %d, %Y') if invoice.due_date else 'On receipt' }}</td>
+            <td><span class="status status-{{ invoice.status }}">{{ invoice.status }}</span></td>
+            <td class="money">${{ '%.2f'|format(invoice.total) }}</td>
+            <td>
+              <div class="actions">
+                {% if invoice.status not in ('paid','void') %}
+                <button class="btn small" type="button" onclick="invoiceAction({{ invoice.id }}, 'send')">{{ 'Resend' if invoice.sent_at else 'Send' }}</button>
+                {% if invoice.sent_at %}<button class="btn small secondary" type="button" onclick="invoiceAction({{ invoice.id }}, 'remind')">Remind</button>{% endif %}
+                <button class="btn small secondary" type="button" onclick="markPaid({{ invoice.id }}, {{ invoice.total }})">Mark Paid</button>
+                {% else %}<span style="color:#166534;font-weight:750;">✓ Collected</span>{% endif %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
       </table>
-      <div class="preview-totals">
-        <div class="preview-total-row"><span>Subtotal</span><span id="p-subtotal">$0.00</span></div>
-        <div class="preview-total-row"><span>Tax</span><span id="p-tax">$0.00</span></div>
-        <div class="preview-total-row grand"><span>Total Due</span><span id="p-grand">$0.00</span></div>
-      </div>
-      <div class="preview-notes" id="p-notes"></div>
     </div>
-  </div>
-
+    {% else %}
+    <div class="empty"><strong>No invoices yet.</strong>Choose a job above to create the first persistent invoice.</div>
+    {% endif %}
+  </section>
 </main>
 
 <script>
-  let lineItems = [];
-  const today = new Date();
-  const due   = new Date(); due.setDate(due.getDate() + 30);
-  document.getElementById('inv-date').value = today.toISOString().split('T')[0];
-  document.getElementById('inv-due').value  = due.toISOString().split('T')[0];
-  document.getElementById('inv-number').value = 'INV-' + String(Date.now()).slice(-4);
-
-  function sanitizeInvoiceText(value) {
-    return String(value ?? '').replace(/[&<>"']/g, char => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[char]);
+  const createForm = document.getElementById('invoice-form');
+  const showCreate = document.getElementById('show-create');
+  const feedback = document.getElementById('create-feedback');
+  function toggleCreate(open) {
+    createForm.classList.toggle('open', open);
+    showCreate.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) document.getElementById('invoice-job').focus();
   }
-
-  function addLineItem(desc='', qty=1, price=0) {
-    lineItems.push({ id: Date.now(), desc, qty, price });
-    renderLineItems();
-  }
-
-  function renderLineItems() {
-    const sanitizedRows = lineItems.map(item => `
-      <tr>
-        <td><input type="text" value="${sanitizeInvoiceText(item.desc)}" placeholder="Labor, materials, travel…"
-          oninput="updateItem(${item.id},'desc',this.value)" style="width:100%;"></td>
-        <td><input type="number" value="${item.qty}" min="0" step="0.5"
-          oninput="updateItem(${item.id},'qty',parseFloat(this.value)||0)" style="width:100%;"></td>
-        <td><input type="number" value="${item.price}" min="0" step="0.01" placeholder="0.00"
-          oninput="updateItem(${item.id},'price',parseFloat(this.value)||0)" style="width:100%;"></td>
-        <td style="font-weight:600;color:#1e3a5f;">$${(item.qty*item.price).toFixed(2)}</td>
-        <td><button class="remove-row" onclick="removeItem(${item.id})">×</button></td>
-      </tr>`).join('');
-    document.getElementById('line-items-body').innerHTML = sanitizedRows;
-    updateTotals();
-  }
-
-  function updateItem(id, field, value) {
-    const item = lineItems.find(i => i.id === id);
-    if (item) { item[field] = value; updateTotals(); }
-    document.querySelectorAll('#line-items-body tr').forEach((row, i) => {
-      const cells = row.querySelectorAll('td');
-      if (cells[3]) cells[3].textContent = '$' + (lineItems[i].qty * lineItems[i].price).toFixed(2);
-    });
-  }
-
-  function removeItem(id) {
-    lineItems = lineItems.filter(i => i.id !== id);
-    renderLineItems();
-  }
-
-  function updateTotals() {
-    const subtotal = lineItems.reduce((s, i) => s + i.qty * i.price, 0);
-    const taxRate  = parseFloat(document.getElementById('tax-rate').value) || 0;
-    const taxAmt   = subtotal * (taxRate / 100);
-    document.getElementById('subtotal').textContent    = '$' + subtotal.toFixed(2);
-    document.getElementById('tax-amount').textContent  = '$' + taxAmt.toFixed(2);
-    document.getElementById('grand-total').textContent = '$' + (subtotal + taxAmt).toFixed(2);
-  }
-
-  document.getElementById('tax-rate').addEventListener('input', updateTotals);
-
-  function updateStatus(val) {
-    const badge = document.getElementById('current-status');
-    badge.className = 'status-badge status-' + val;
-    badge.textContent = val.charAt(0).toUpperCase() + val.slice(1);
-  }
-
-  function showPreview() {
-    const fromInfo = document.getElementById('from-info').value;
-    document.getElementById('p-from-name').textContent = fromInfo.split('\n')[0] || 'FIELDBASE';
-    document.getElementById('p-from-info').textContent = fromInfo;
-    document.getElementById('p-from-info').style.whiteSpace = 'pre-line';
-    document.getElementById('p-to-info').textContent = document.getElementById('to-info').value;
-    document.getElementById('p-to-info').style.whiteSpace = 'pre-line';
-    document.getElementById('p-inv-number').textContent = document.getElementById('inv-number').value;
-    document.getElementById('p-inv-date').textContent   = document.getElementById('inv-date').value;
-    document.getElementById('p-inv-due').textContent    = document.getElementById('inv-due').value;
-    document.getElementById('p-inv-ref').textContent    = document.getElementById('inv-ref').value || '—';
-    const subtotal = lineItems.reduce((s,i)=>s+i.qty*i.price,0);
-    const taxRate  = parseFloat(document.getElementById('tax-rate').value)||0;
-    const taxAmt   = subtotal*(taxRate/100);
-    document.getElementById('p-subtotal').textContent = '$'+subtotal.toFixed(2);
-    document.getElementById('p-tax').textContent      = '$'+taxAmt.toFixed(2);
-    document.getElementById('p-grand').textContent    = '$'+(subtotal+taxAmt).toFixed(2);
-    const previewRows = document.getElementById('p-line-items');
-    previewRows.replaceChildren();
-    lineItems.forEach(item => {
-      const row = document.createElement('tr');
-      [item.desc || '—', item.qty, `$${item.price.toFixed(2)}`, `$${(item.qty * item.price).toFixed(2)}`].forEach(value => {
-        const cell = document.createElement('td');
-        cell.textContent = String(value);
-        row.append(cell);
-      });
-      previewRows.append(row);
-    });
-    const notes = document.getElementById('inv-notes').value;
-    const notesPreview = document.getElementById('p-notes');
-    notesPreview.replaceChildren();
-    if (notes) {
-      const label = document.createElement('strong');
-      label.textContent = 'Notes:';
-      notesPreview.append(label, document.createTextNode(` ${notes}`));
+  showCreate.addEventListener('click', () => toggleCreate(true));
+  document.getElementById('cancel-create').addEventListener('click', () => toggleCreate(false));
+  createForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = new FormData(createForm);
+    const payload = Object.fromEntries(form.entries());
+    feedback.className = 'feedback';
+    feedback.textContent = 'Saving…';
+    const response = await fetch('/api/invoices', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data = await response.json();
+    if (!response.ok) {
+      feedback.className = 'feedback error';
+      feedback.textContent = data.error || 'Could not save the invoice.';
+      return;
     }
-    document.getElementById('preview').classList.add('visible');
-    document.getElementById('preview-card').scrollIntoView({behavior:'smooth'});
+    feedback.className = 'feedback success';
+    feedback.textContent = `${data.number} saved.`;
+    location.reload();
+  });
+  async function invoiceAction(id, action) {
+    const response = await fetch(`/api/invoices/${id}/${action}`, {method:'POST'});
+    const data = await response.json();
+    if (!response.ok) return alert(data.error || 'The invoice action failed.');
+    alert(action === 'remind' ? 'Payment reminder sent.' : 'Invoice sent with a secure payment link.');
+    location.reload();
   }
-
-  function saveInvoice() {
-    const data = {
-      number: document.getElementById('inv-number').value,
-      date: document.getElementById('inv-date').value,
-      due: document.getElementById('inv-due').value,
-      ref: document.getElementById('inv-ref').value,
-      from: document.getElementById('from-info').value,
-      to: document.getElementById('to-info').value,
-      items: lineItems,
-      tax: document.getElementById('tax-rate').value,
-      notes: document.getElementById('inv-notes').value,
-      status: document.getElementById('status-select').value,
-      saved: new Date().toISOString()
-    };
-    localStorage.setItem('fieldbase_invoice_'+data.number, JSON.stringify(data));
-    alert('Invoice saved: INV-' + data.number);
+  async function markPaid(id, total) {
+    const amount = prompt('Amount received:', Number(total).toFixed(2));
+    if (amount === null) return;
+    const response = await fetch(`/api/invoices/${id}/paid`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount})});
+    const data = await response.json();
+    if (!response.ok) return alert(data.error || 'Could not record payment.');
+    location.reload();
   }
-
-  function clearForm() {
-    if (!confirm('Clear all fields?')) return;
-    lineItems = [];
-    renderLineItems();
-    ['inv-number','inv-ref','from-info','to-info','inv-notes'].forEach(id => document.getElementById(id).value='');
-    document.getElementById('tax-rate').value = 0;
-    updateTotals();
-    document.getElementById('preview').classList.remove('visible');
-  }
-
-  addLineItem();
 </script>
 {% include '_sync.html' %}
 {% include '_voice_fab.html' %}

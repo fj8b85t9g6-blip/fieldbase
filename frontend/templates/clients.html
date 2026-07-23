@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FieldBase — Clients</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6f9;color:#172033;min-height:100vh}
+    header{background:#17324f;color:#fff;padding:16px 32px;display:flex;justify-content:space-between;align-items:center}header h1{font-size:20px}header span{color:#bfdbfe;font-size:13px}
+    .container{max-width:1080px;margin:28px auto;padding:0 24px}.page-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px}.page-head h2{font-size:24px;color:#17324f}.page-head p{font-size:14px;color:#64748b;margin-top:5px}
+    .layout{display:grid;grid-template-columns:340px 1fr;gap:20px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(15,23,42,.05)}.card h3{font-size:15px;color:#17324f;margin-bottom:16px}
+    .field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}label{font-size:12px;font-weight:700;color:#475569}input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:7px;padding:10px 11px;font:inherit;font-size:14px}textarea{resize:vertical;min-height:70px}
+    .btn{border:0;border-radius:8px;padding:10px 15px;background:#2563eb;color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer}.btn:hover{background:#1d4ed8}.btn.danger{background:#fff;color:#b91c1c;border:1px solid #fecaca}.btn.danger:hover{background:#fef2f2}
+    .flash{padding:11px 14px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:8px;margin-bottom:16px;font-size:13px;font-weight:650}
+    .clients{display:flex;flex-direction:column;gap:10px}.client{display:flex;justify-content:space-between;gap:16px;padding:16px;border:1px solid #e2e8f0;border-radius:10px}.client h4{color:#17324f;font-size:15px}.client-company{color:#64748b;font-size:12px;margin-top:3px}.details{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;color:#475569;font-size:12px}.details a{color:#1d4ed8}.job-count{display:inline-flex;margin-top:9px;padding:3px 8px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:11px;font-weight:750}.empty{text-align:center;padding:46px 20px;color:#64748b}
+    @media(max-width:760px){header{padding:14px 16px}.container{padding:0 12px;margin-top:20px}.layout{grid-template-columns:1fr}.page-head{flex-direction:column}.client{align-items:flex-start}}
+  </style>
+  {% include '_app_foundation.html' %}
+</head>
+<body>
+<header><h1>FieldBase</h1><span>{{ current_user.company.name }}</span></header>
+{% set active_page = 'clients' %}{% include '_app_nav.html' %}
+<main class="container" id="main-content">
+  <div class="page-head"><div><h2>Clients</h2><p>Keep contacts, job sites, billing terms, and service history together.</p></div><a class="btn" href="/calendar" style="text-decoration:none">Schedule Job →</a></div>
+  {% with messages=get_flashed_messages() %}{% if messages %}<div class="flash" role="status">{{ messages[0] }}</div>{% endif %}{% endwith %}
+  <div class="layout">
+    <section class="card" aria-labelledby="add-client-title">
+      <h3 id="add-client-title">Add Client</h3>
+      <form method="POST">
+        <div class="field"><label for="client-name">Contact Name</label><input id="client-name" name="name" required autocomplete="name" placeholder="Jordan Lee"></div>
+        <div class="field"><label for="client-company">Company</label><input id="client-company" name="company_name" autocomplete="organization" placeholder="Northstar Retail"></div>
+        <div class="field"><label for="client-email">Email</label><input id="client-email" name="email" type="email" autocomplete="email" spellcheck="false" placeholder="client@example.com"></div>
+        <div class="field"><label for="client-phone">Phone</label><input id="client-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="(555) 555-0100"></div>
+        <div class="field"><label for="client-address">Primary Job Site</label><input id="client-address" name="address" autocomplete="street-address" placeholder="123 Market Street"></div>
+        <div class="field"><label for="client-terms">Billing Terms</label><select id="client-terms" name="billing_terms"><option>Due on Receipt</option><option>Net 15</option><option selected>Net 30</option><option>Net 60</option></select></div>
+        <div class="field"><label for="client-access">Access Notes</label><textarea id="client-access" name="access_notes" placeholder="Parking, access codes, onsite contact…"></textarea></div>
+        <button class="btn" type="submit">Add Client</button>
+      </form>
+    </section>
+    <section class="card" aria-labelledby="client-list-title">
+      <h3 id="client-list-title">{{ clients|length }} Client{{ 's' if clients|length != 1 else '' }}</h3>
+      {% if clients %}<div class="clients">
+      {% for client in clients %}
+        <article class="client" id="client-{{ client.id }}">
+          <div>
+            <h4>{{ client.name }}</h4>
+            {% if client.company_name %}<div class="client-company">{{ client.company_name }}</div>{% endif %}
+            <div class="details">
+              {% if client.email %}<a href="mailto:{{ client.email }}">{{ client.email }}</a>{% endif %}
+              {% if client.phone %}<a href="tel:{{ client.phone }}">{{ client.phone }}</a>{% endif %}
+              {% if client.address %}<span>{{ client.address }}</span>{% endif %}
+            </div>
+            <span class="job-count">{{ job_counts.get(client.id,0) }} job{{ 's' if job_counts.get(client.id,0) != 1 else '' }} · {{ client.billing_terms or 'Net 30' }}</span>
+          </div>
+          <button class="btn danger" type="button" onclick="removeClient({{ client.id }})">Delete</button>
+        </article>
+      {% endfor %}
+      </div>{% else %}<div class="empty">No clients yet. Add the first client to eliminate repeated data entry.</div>{% endif %}
+    </section>
+  </div>
+</main>
+<script>
+async function removeClient(id){if(!confirm('Delete this client? Existing jobs will be kept.'))return;const response=await fetch(`/api/clients/${id}`,{method:'DELETE'});if(response.ok)document.getElementById(`client-${id}`).remove();else alert('Could not delete this client.');}
+</script>
+{% include '_sync.html' %}{% include '_voice_fab.html' %}
+</body></html>

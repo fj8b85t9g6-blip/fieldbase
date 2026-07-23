@@ -4,6 +4,7 @@
     <a href="/" {% if active_page == 'dashboard' %}class="active" aria-current="page"{% endif %}>Dashboard</a>
     <a href="/calendar" {% if active_page == 'calendar' %}class="active" aria-current="page"{% endif %}>Schedule</a>
     <a href="/job-brief" {% if active_page == 'job-brief' %}class="active" aria-current="page"{% endif %}>Job Briefs</a>
+    <a href="/job-templates" {% if active_page == 'job-templates' %}class="active" aria-current="page"{% endif %}>Templates</a>
     <a href="/work-log" {% if active_page == 'work-log' %}class="active" aria-current="page"{% endif %}>Work Log</a>
   </div>
   <div class="fb-nav-group" aria-label="Money">
@@ -12,6 +13,7 @@
     <a href="/reports" {% if active_page == 'reports' %}class="active" aria-current="page"{% endif %}>Reports</a>
   </div>
   <div class="fb-nav-group" aria-label="Company">
+    <a href="/clients" {% if active_page == 'clients' %}class="active" aria-current="page"{% endif %}>Clients</a>
     <a href="/team" {% if active_page == 'team' %}class="active" aria-current="page"{% endif %}>Team</a>
     <a href="/tech-standards" {% if active_page == 'standards' %}class="active" aria-current="page"{% endif %}>Standards</a>
     {% if current_user.role == 'owner' %}

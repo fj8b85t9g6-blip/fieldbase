@@ -44,7 +44,7 @@
 
         /* Quick actions */
         .section-title { font-size: 14px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
-        .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+        .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
         .action-btn { background: #fff; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 18px; text-decoration: none; color: #1a1a2e; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; transition: border-color 0.15s, box-shadow 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
         .action-btn:hover { border-color: #1e3a5f; box-shadow: 0 4px 12px rgba(30,58,95,0.1); }
         .action-icon { font-size: 24px; }
@@ -308,6 +308,16 @@
             <div class="action-title">Invoices</div>
             <div class="action-sub">Create & send</div>
         </a>
+        <a href="/clients" class="action-btn">
+            <div class="action-icon">👥</div>
+            <div class="action-title">Clients</div>
+            <div class="action-sub">Contacts & job sites</div>
+        </a>
+        <a href="/job-templates" class="action-btn">
+            <div class="action-icon">🧰</div>
+            <div class="action-title">Templates</div>
+            <div class="action-sub">Reusable jobs & closeout</div>
+        </a>
         <a href="/settings" class="action-btn">
             <div class="action-icon">⚙️</div>
             <div class="action-title">Settings</div>
@@ -399,6 +409,20 @@
                             <span class="val">{% if job.clock_out_at %}{{ job.clock_out_at.strftime('%I:%M %p') }}{% else %}—{% endif %}</span>
                         </div>
                     </div>
+
+                    {% set closeout_items = json_list(job.closeout_checklist) %}
+                    {% if closeout_items or job.signature_required %}
+                    <div class="employee-notes" style="border-left-color:#2563eb;">
+                        <strong style="color:#1d4ed8;">Closeout Readiness</strong>
+                        {% if closeout_items %}
+                          {% set completed_items = closeout_items | selectattr('done') | list | length %}
+                          {{ completed_items }}/{{ closeout_items|length }} checklist items complete
+                        {% endif %}
+                        {% if job.signature_required %}
+                          · {{ 'Signed by ' ~ job.signature_name if job.signed_at else 'Customer signature required' }}
+                        {% endif %}
+                    </div>
+                    {% endif %}
 
                     {% if job.employee_notes %}
                     <div class="employee-notes">
@@ -494,7 +518,13 @@
         const res = await fetch(`/api/jobs/${jobId}/close-and-invoice`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            alert('Job closed and invoice sent.');
+            if (data.invoice_sent) {
+                alert('Job closed and invoice sent.');
+            } else if (data.invoice_created) {
+                alert(data.warning || 'Job closed and invoice saved as a draft.');
+            } else {
+                alert(data.warning || 'Job closed. Add a job value to create an invoice.');
+            }
             location.reload();
         } else {
             alert(data.error || 'Something went wrong.');

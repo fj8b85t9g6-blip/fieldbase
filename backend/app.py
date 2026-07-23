@@ -4,6 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from datetime import datetime, timedelta
 from functools import wraps
 from sqlalchemy import text
+from dateutil.relativedelta import relativedelta
 import bcrypt
 import os
 import smtplib
@@ -11,6 +12,7 @@ import uuid
 import json
 import hmac
 import secrets
+import html as html_lib
 import stripe
 try:
     from backend.marketing import GUIDES, SEGMENT_PAGES
@@ -95,6 +97,8 @@ class Company(db.Model):
     acquisition_campaign    = db.Column(db.String(100))
     acquisition_content     = db.Column(db.String(100))
     acquisition_landing     = db.Column(db.String(300))
+    invoice_reminders_enabled = db.Column(db.Boolean, default=False)
+    client_notifications_enabled = db.Column(db.Boolean, default=False)
     users                  = db.relationship('User', backref='company', lazy=True)
     jobs                   = db.relationship('Job', backref='company', lazy=True)
 
@@ -146,6 +150,13 @@ class Job(db.Model):
     clock_in_lng      = db.Column(db.Float)
     job_lat           = db.Column(db.Float)
     job_lng           = db.Column(db.Float)
+    client_id         = db.Column(db.Integer, db.ForeignKey('clients.id'))
+    job_template_id   = db.Column(db.Integer, db.ForeignKey('job_templates.id'))
+    closeout_checklist = db.Column(db.Text, default='[]')
+    signature_name    = db.Column(db.String(200))
+    signature_filename = db.Column(db.String(300))
+    signed_at         = db.Column(db.DateTime)
+    signature_required = db.Column(db.Boolean, default=False)
 
 
 class JobPhoto(db.Model):
@@ -167,6 +178,85 @@ class JobDocument(db.Model):
     original_name = db.Column(db.String(300))
     uploaded_by   = db.Column(db.String(200))
     uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Client(db.Model):
+    __tablename__ = 'clients'
+    id            = db.Column(db.Integer, primary_key=True)
+    company_id    = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False, index=True)
+    name          = db.Column(db.String(200), nullable=False)
+    company_name  = db.Column(db.String(200))
+    email         = db.Column(db.String(200))
+    phone         = db.Column(db.String(50))
+    address       = db.Column(db.String(300))
+    billing_terms = db.Column(db.String(100), default='Net 30')
+    access_notes  = db.Column(db.Text)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (
+        db.UniqueConstraint('company_id', 'email', name='uq_client_company_email'),
+    )
+
+
+class JobTemplate(db.Model):
+    __tablename__ = 'job_templates'
+    id               = db.Column(db.Integer, primary_key=True)
+    company_id       = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False, index=True)
+    name             = db.Column(db.String(200), nullable=False)
+    title            = db.Column(db.String(200), nullable=False)
+    platform         = db.Column(db.String(50), default='manual')
+    duration_minutes = db.Column(db.Integer, default=120)
+    default_tech_pay = db.Column(db.Float)
+    default_job_pay  = db.Column(db.Float)
+    notes            = db.Column(db.Text)
+    checklist        = db.Column(db.Text, default='[]')
+    require_signature = db.Column(db.Boolean, default=False)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at       = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class InvoiceRecord(db.Model):
+    __tablename__ = 'invoices'
+    id             = db.Column(db.Integer, primary_key=True)
+    company_id     = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False, index=True)
+    job_id         = db.Column(db.Integer, db.ForeignKey('jobs.id'), index=True)
+    client_id      = db.Column(db.Integer, db.ForeignKey('clients.id'))
+    number         = db.Column(db.String(50), nullable=False)
+    status         = db.Column(db.String(30), nullable=False, default='draft', index=True)
+    issue_date     = db.Column(db.DateTime, default=datetime.utcnow)
+    due_date       = db.Column(db.DateTime)
+    client_name    = db.Column(db.String(200))
+    client_company = db.Column(db.String(200))
+    client_email   = db.Column(db.String(200))
+    line_items     = db.Column(db.Text, default='[]')
+    subtotal       = db.Column(db.Float, default=0)
+    tax_rate       = db.Column(db.Float, default=0)
+    tax_amount     = db.Column(db.Float, default=0)
+    total          = db.Column(db.Float, default=0)
+    amount_paid    = db.Column(db.Float, default=0)
+    notes          = db.Column(db.Text)
+    stripe_checkout_session_id = db.Column(db.String(200))
+    stripe_checkout_url = db.Column(db.String(500))
+    sent_at        = db.Column(db.DateTime)
+    viewed_at      = db.Column(db.DateTime)
+    paid_at        = db.Column(db.DateTime)
+    reminder_sent_at = db.Column(db.DateTime)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (
+        db.UniqueConstraint('company_id', 'number', name='uq_invoice_company_number'),
+    )
+
+
+class DispatchEvent(db.Model):
+    __tablename__ = 'dispatch_events'
+    id          = db.Column(db.Integer, primary_key=True)
+    company_id  = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False, index=True)
+    job_id      = db.Column(db.Integer, db.ForeignKey('jobs.id'), nullable=False, index=True)
+    event_type  = db.Column(db.String(50), nullable=False)
+    recipient   = db.Column(db.String(200))
+    status      = db.Column(db.String(30), default='sent')
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class Conflict(db.Model):
@@ -536,7 +626,8 @@ def index():
         today=today, unconfirmed=unconfirmed, active=active,
         needs_review=needs_review, company=current_user.company,
         onboarding=onboarding,
-        onboarding_completed=onboarding_completed)
+        onboarding_completed=onboarding_completed,
+        json_list=_json_list)
 
 
 @app.route('/for/<slug>')
@@ -711,7 +802,9 @@ def sitemap_xml():
 def calendar():
     jobs      = Job.query.filter_by(company_id=current_user.company_id).all()
     conflicts = detect_conflicts(current_user.company_id)
-    return render_template('calendar.html', jobs=jobs, conflicts=conflicts)
+    clients = Client.query.filter_by(company_id=current_user.company_id).order_by(Client.name).all()
+    templates = JobTemplate.query.filter_by(company_id=current_user.company_id).order_by(JobTemplate.name).all()
+    return render_template('calendar.html', jobs=jobs, conflicts=conflicts, clients=clients, templates=templates)
 
 
 @app.route('/job-brief')
@@ -727,11 +820,427 @@ def job_brief():
     return render_template('job_brief.html', owner=current_user, employees=employees, std=std)
 
 
+def _json_list(raw):
+    try:
+        value = json.loads(raw or '[]')
+        return value if isinstance(value, list) else []
+    except (TypeError, ValueError):
+        return []
+
+
+def _next_invoice_number(company_id):
+    latest = InvoiceRecord.query.filter_by(company_id=company_id).order_by(
+        InvoiceRecord.id.desc()
+    ).first()
+    sequence = (latest.id + 1) if latest else 1
+    return f'INV-{datetime.utcnow().strftime("%Y")}-{sequence:04d}'
+
+
+def _create_invoice_for_job(job, status='draft'):
+    existing = InvoiceRecord.query.filter_by(
+        company_id=job.company_id,
+        job_id=job.id,
+    ).order_by(InvoiceRecord.id.desc()).first()
+    if existing:
+        return existing
+    amount = round(float(job.job_pay or 0), 2)
+    invoice = InvoiceRecord(
+        company_id=job.company_id,
+        job_id=job.id,
+        client_id=job.client_id,
+        number=_next_invoice_number(job.company_id),
+        status=status,
+        issue_date=datetime.utcnow(),
+        due_date=datetime.utcnow() + timedelta(days=30),
+        client_name=job.client_name,
+        client_company=job.client_company,
+        client_email=job.client_email,
+        line_items=json.dumps([{
+            'description': job.title,
+            'quantity': 1,
+            'unit_price': amount,
+            'total': amount,
+        }]),
+        subtotal=amount,
+        total=amount,
+        notes=f'Job completed at {job.location}' if job.location else None,
+    )
+    db.session.add(invoice)
+    db.session.flush()
+    return invoice
+
+
+def _invoice_checkout(invoice):
+    if invoice.total <= 0:
+        raise ValueError('Invoice total must be greater than zero.')
+    company = db.session.get(Company, invoice.company_id)
+    request_options = {}
+    if company and company.connect_charges_enabled and company.stripe_connect_id:
+        request_options['stripe_account'] = company.stripe_connect_id
+    session_obj = stripe.checkout.Session.create(
+        mode='payment',
+        line_items=[{
+            'price_data': {
+                'currency': 'usd',
+                'product_data': {
+                    'name': f'Invoice {invoice.number}',
+                    'description': (invoice.client_company or invoice.client_name or '')[:200],
+                },
+                'unit_amount': int(round(invoice.total * 100)),
+            },
+            'quantity': 1,
+        }],
+        customer_email=invoice.client_email or None,
+        metadata={
+            'invoice_id': str(invoice.id),
+            'job_id': str(invoice.job_id or ''),
+            'company_id': str(invoice.company_id),
+        },
+        success_url=request.host_url.rstrip('/') + '/invoice/payment/success',
+        cancel_url=request.host_url.rstrip('/') + '/invoice/payment/canceled',
+        **request_options,
+    )
+    invoice.stripe_checkout_session_id = session_obj.id
+    invoice.stripe_checkout_url = session_obj.url
+    db.session.commit()
+    return session_obj.url
+
+
+def _send_invoice_record(invoice, reminder=False):
+    if not invoice.client_email:
+        return False
+    if not invoice.stripe_checkout_url:
+        _invoice_checkout(invoice)
+    owner = User.query.filter_by(
+        company_id=invoice.company_id,
+        role='owner',
+        is_active=True,
+    ).first()
+    company = db.session.get(Company, invoice.company_id)
+    client_name = html_lib.escape(invoice.client_name or 'Valued Client')
+    company_name = html_lib.escape(company.name if company else 'Your Service Provider')
+    owner_name = html_lib.escape(owner.name if owner else '')
+    invoice_number = html_lib.escape(invoice.number)
+    amount = f'${invoice.total:,.2f}'
+    due = invoice.due_date.strftime('%B %d, %Y') if invoice.due_date else 'Due on receipt'
+    intro = (
+        f'This is a reminder that invoice <strong>{invoice_number}</strong> is still outstanding.'
+        if reminder else
+        f'Invoice <strong>{invoice_number}</strong> is ready for payment.'
+    )
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+      <div style="background:#17324f;padding:24px 32px;color:#fff;">
+        <h1 style="margin:0;font-size:22px;">{company_name}</h1>
+        <p style="margin:5px 0 0;color:#bfdbfe;">{invoice_number}</p>
+      </div>
+      <div style="padding:32px;">
+        <p>Dear {client_name},</p>
+        <p>{intro}</p>
+        <div style="background:#f8fafc;border-radius:8px;padding:18px;margin:22px 0;">
+          <div style="font-size:13px;color:#64748b;">Amount Due</div>
+          <div style="font-size:28px;font-weight:800;color:#17324f;">{amount}</div>
+          <div style="font-size:13px;color:#64748b;margin-top:4px;">Due {due}</div>
+        </div>
+        <a href="{html_lib.escape(invoice.stripe_checkout_url)}" style="display:inline-block;background:#2563eb;color:#fff;padding:13px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Pay Securely</a>
+        <p style="margin-top:26px;color:#475569;">— {owner_name}<br>{company_name}</p>
+      </div>
+    </div>"""
+    sent = send_email(
+        invoice.client_email,
+        f'{"Reminder: " if reminder else ""}Invoice {invoice.number} — {amount}',
+        html,
+    )
+    if sent:
+        invoice.status = 'sent' if invoice.status == 'draft' else invoice.status
+        invoice.sent_at = invoice.sent_at or datetime.utcnow()
+        if reminder:
+            invoice.reminder_sent_at = datetime.utcnow()
+        if invoice.job_id:
+            job = db.session.get(Job, invoice.job_id)
+            if job:
+                job.invoice_sent = True
+                job.invoice_sent_at = job.invoice_sent_at or datetime.utcnow()
+                job.stripe_payment_link = invoice.stripe_checkout_url
+        db.session.commit()
+    return sent
+
+
 @app.route('/invoice')
+@app.route('/invoices')
 @login_required
 @owner_required
 def invoice():
-    return render_template('invoice.html')
+    invoices = InvoiceRecord.query.filter_by(
+        company_id=current_user.company_id
+    ).order_by(InvoiceRecord.created_at.desc()).all()
+    jobs = Job.query.filter(
+        Job.company_id == current_user.company_id,
+        Job.job_pay.isnot(None),
+    ).order_by(Job.start_time.desc()).all()
+    clients = Client.query.filter_by(
+        company_id=current_user.company_id
+    ).order_by(Client.name).all()
+    today = datetime.utcnow()
+    for item in invoices:
+        if item.status == 'sent' and item.due_date and item.due_date < today:
+            item.status = 'overdue'
+    db.session.commit()
+    return render_template(
+        'invoice.html',
+        invoices=invoices,
+        jobs=jobs,
+        clients=clients,
+        outstanding=sum(max(0, item.total - (item.amount_paid or 0)) for item in invoices if item.status not in ('paid', 'void')),
+        overdue_count=sum(1 for item in invoices if item.status == 'overdue'),
+        paid_total=sum(item.amount_paid or 0 for item in invoices if item.status == 'paid'),
+        json_list=_json_list,
+    )
+
+
+@app.route('/api/invoices', methods=['POST'])
+@login_required
+@owner_required
+def create_invoice():
+    data = request.get_json(silent=True) or {}
+    job = None
+    client = None
+    if data.get('job_id'):
+        job = Job.query.filter_by(
+            id=data.get('job_id'),
+            company_id=current_user.company_id,
+        ).first_or_404()
+    if data.get('client_id'):
+        client = Client.query.filter_by(
+            id=data.get('client_id'),
+            company_id=current_user.company_id,
+        ).first_or_404()
+    if job:
+        invoice = _create_invoice_for_job(job)
+    else:
+        description = _bounded(data.get('description'), 300)
+        unit_price = _to_float(data.get('unit_price'))
+        quantity = _to_float(data.get('quantity')) or 1
+        tax_rate = max(0, min(_to_float(data.get('tax_rate')) or 0, 100))
+        if not description or unit_price is None or unit_price <= 0:
+            return jsonify({'error': 'Description and a positive amount are required.'}), 400
+        subtotal = round(quantity * unit_price, 2)
+        tax_amount = round(subtotal * tax_rate / 100, 2)
+        due_days = max(0, min(_to_int(data.get('due_days'), 30), 365))
+        invoice = InvoiceRecord(
+            company_id=current_user.company_id,
+            client_id=client.id if client else None,
+            number=_next_invoice_number(current_user.company_id),
+            due_date=datetime.utcnow() + timedelta(days=due_days),
+            client_name=client.name if client else _bounded(data.get('client_name'), 200),
+            client_company=client.company_name if client else _bounded(data.get('client_company'), 200),
+            client_email=client.email if client else _bounded(data.get('client_email'), 200),
+            line_items=json.dumps([{
+                'description': description,
+                'quantity': quantity,
+                'unit_price': unit_price,
+                'total': subtotal,
+            }]),
+            subtotal=subtotal,
+            tax_rate=tax_rate,
+            tax_amount=tax_amount,
+            total=subtotal + tax_amount,
+            notes=_bounded(data.get('notes'), 2000),
+        )
+        db.session.add(invoice)
+    db.session.commit()
+    return jsonify({'success': True, 'id': invoice.id, 'number': invoice.number})
+
+
+@app.route('/api/invoices/<int:invoice_id>/send', methods=['POST'])
+@login_required
+@owner_required
+def send_invoice(invoice_id):
+    invoice = InvoiceRecord.query.filter_by(
+        id=invoice_id,
+        company_id=current_user.company_id,
+    ).first_or_404()
+    if not invoice.client_email:
+        return jsonify({'error': 'Add a client email before sending.'}), 400
+    try:
+        sent = _send_invoice_record(invoice)
+    except Exception:
+        app.logger.exception('Invoice delivery failed')
+        return jsonify({'error': 'Could not create the secure payment page.'}), 502
+    if not sent:
+        return jsonify({'error': 'Email is not configured or delivery failed.'}), 503
+    _record_marketing_event('first_invoice_sent', company_id=current_user.company_id, once=True)
+    return jsonify({'success': True, 'checkout_url': invoice.stripe_checkout_url})
+
+
+@app.route('/api/invoices/<int:invoice_id>/remind', methods=['POST'])
+@login_required
+@owner_required
+def remind_invoice(invoice_id):
+    invoice = InvoiceRecord.query.filter_by(
+        id=invoice_id,
+        company_id=current_user.company_id,
+    ).first_or_404()
+    if invoice.status == 'paid':
+        return jsonify({'error': 'This invoice is already paid.'}), 400
+    try:
+        sent = _send_invoice_record(invoice, reminder=True)
+    except Exception:
+        app.logger.exception('Invoice reminder failed')
+        return jsonify({'error': 'Could not send the payment reminder.'}), 502
+    return jsonify({'success': sent}) if sent else (jsonify({'error': 'Email delivery failed.'}), 503)
+
+
+@app.route('/api/invoices/<int:invoice_id>/paid', methods=['POST'])
+@login_required
+@owner_required
+def mark_invoice_paid(invoice_id):
+    invoice = InvoiceRecord.query.filter_by(
+        id=invoice_id,
+        company_id=current_user.company_id,
+    ).first_or_404()
+    data = request.get_json(silent=True) or {}
+    amount = _to_float(data.get('amount'))
+    invoice.amount_paid = invoice.total if amount is None else max(0, min(amount, invoice.total))
+    invoice.status = 'paid' if invoice.amount_paid >= invoice.total else 'partial'
+    invoice.paid_at = datetime.utcnow() if invoice.status == 'paid' else None
+    if invoice.job_id:
+        job = db.session.get(Job, invoice.job_id)
+        if job:
+            job.payment_received = invoice.status == 'paid'
+            job.amount_paid = invoice.amount_paid
+    db.session.commit()
+    _record_marketing_event('first_payment_recorded', company_id=current_user.company_id, once=True)
+    return jsonify({'success': True, 'status': invoice.status})
+
+
+@app.route('/invoice/payment/success')
+def invoice_payment_success():
+    return render_template('payment_result.html', paid=True)
+
+
+@app.route('/invoice/payment/canceled')
+def invoice_payment_canceled():
+    return render_template('payment_result.html', paid=False)
+
+
+@app.route('/clients', methods=['GET', 'POST'])
+@login_required
+@owner_required
+def clients():
+    if request.method == 'POST':
+        name = _bounded(request.form.get('name'), 200)
+        if not name:
+            flash('Client name is required.')
+            return redirect(url_for('clients'))
+        email = _bounded(request.form.get('email'), 200)
+        existing = Client.query.filter_by(
+            company_id=current_user.company_id,
+            email=email,
+        ).first() if email else None
+        if existing:
+            flash('A client with that email already exists.')
+            return redirect(url_for('clients'))
+        db.session.add(Client(
+            company_id=current_user.company_id,
+            name=name,
+            company_name=_bounded(request.form.get('company_name'), 200),
+            email=email,
+            phone=_bounded(request.form.get('phone'), 50),
+            address=_bounded(request.form.get('address'), 300),
+            billing_terms=_bounded(request.form.get('billing_terms'), 100) or 'Net 30',
+            access_notes=_bounded(request.form.get('access_notes'), 2000),
+        ))
+        db.session.commit()
+        flash('Client added.')
+        return redirect(url_for('clients'))
+    client_rows = Client.query.filter_by(
+        company_id=current_user.company_id
+    ).order_by(Client.name).all()
+    job_counts = {
+        client.id: Job.query.filter_by(
+            company_id=current_user.company_id,
+            client_id=client.id,
+        ).count()
+        for client in client_rows
+    }
+    return render_template('clients.html', clients=client_rows, job_counts=job_counts)
+
+
+@app.route('/api/clients/<int:client_id>', methods=['DELETE'])
+@login_required
+@owner_required
+def delete_client(client_id):
+    client = Client.query.filter_by(
+        id=client_id,
+        company_id=current_user.company_id,
+    ).first_or_404()
+    Job.query.filter_by(company_id=current_user.company_id, client_id=client.id).update({'client_id': None})
+    db.session.delete(client)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/job-templates', methods=['GET', 'POST'])
+@login_required
+@owner_required
+def job_templates():
+    if request.method == 'POST':
+        name = _bounded(request.form.get('name'), 200)
+        title = _bounded(request.form.get('title'), 200)
+        if not name or not title:
+            flash('Template name and job title are required.')
+            return redirect(url_for('job_templates'))
+        checklist = [
+            item.strip()[:200]
+            for item in (request.form.get('checklist') or '').splitlines()
+            if item.strip()
+        ][:20]
+        db.session.add(JobTemplate(
+            company_id=current_user.company_id,
+            name=name,
+            title=title,
+            platform=_bounded(request.form.get('platform'), 50) or 'manual',
+            duration_minutes=max(15, min(_to_int(request.form.get('duration_minutes'), 120), 1440)),
+            default_tech_pay=_to_float(request.form.get('default_tech_pay')),
+            default_job_pay=_to_float(request.form.get('default_job_pay')),
+            notes=_bounded(request.form.get('notes'), 3000),
+            checklist=json.dumps(checklist),
+            require_signature=request.form.get('require_signature') == 'on',
+        ))
+        db.session.commit()
+        flash('Job template saved.')
+        return redirect(url_for('job_templates'))
+    templates = JobTemplate.query.filter_by(
+        company_id=current_user.company_id
+    ).order_by(JobTemplate.name).all()
+    return render_template('job_templates.html', templates=templates, json_list=_json_list)
+
+
+@app.route('/api/job-templates/<int:template_id>', methods=['GET', 'DELETE'])
+@login_required
+@owner_required
+def job_template_api(template_id):
+    template = JobTemplate.query.filter_by(
+        id=template_id,
+        company_id=current_user.company_id,
+    ).first_or_404()
+    if request.method == 'DELETE':
+        db.session.delete(template)
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({
+        'id': template.id,
+        'name': template.name,
+        'title': template.title,
+        'platform': template.platform,
+        'duration_minutes': template.duration_minutes,
+        'tech_pay': template.default_tech_pay,
+        'job_pay': template.default_job_pay,
+        'notes': template.notes,
+        'checklist': _json_list(template.checklist),
+        'require_signature': template.require_signature,
+    })
 
 # ─────────────────────────────────────────
 # EMPLOYEE ROUTES
@@ -746,7 +1255,7 @@ def employee_dashboard():
         company_id=current_user.company_id,
         tech_assigned=current_user.name
     ).order_by(Job.start_time).all()
-    return render_template('employee.html', jobs=jobs)
+    return render_template('employee.html', jobs=jobs, json_list=_json_list)
 
 # ─────────────────────────────────────────
 # API ROUTES
@@ -773,6 +1282,11 @@ def get_jobs():
         'client_name':    j.client_name,
         'client_company': j.client_company,
         'client_email':   j.client_email,
+        'client_id':      j.client_id,
+        'template_id':    j.job_template_id,
+        'checklist':      _json_list(j.closeout_checklist),
+        'signed':         bool(j.signed_at),
+        'signature_name': j.signature_name,
         'color':     platform_color(j.platform)
     } for j in jobs])
 
@@ -787,6 +1301,15 @@ def _to_float(value):
         return None
 
 
+def _to_int(value, default=None):
+    if value in (None, ''):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_dt(value):
     """Parse an ISO datetime string, returning None instead of raising."""
     if not value:
@@ -797,12 +1320,52 @@ def _parse_dt(value):
         return None
 
 
+def _job_client_from_data(company_id, data):
+    client_id = data.get('client_id')
+    if client_id:
+        return Client.query.filter_by(id=client_id, company_id=company_id).first()
+    email = _bounded(data.get('client_email'), 200)
+    name = _bounded(data.get('client_name'), 200)
+    if not email and not name:
+        return None
+    client = Client.query.filter_by(company_id=company_id, email=email).first() if email else None
+    if not client:
+        client = Client(
+            company_id=company_id,
+            name=name or email,
+            company_name=_bounded(data.get('client_company'), 200),
+            email=email,
+            address=_bounded(data.get('location'), 300),
+        )
+        db.session.add(client)
+        db.session.flush()
+    else:
+        client.name = name or client.name
+        client.company_name = _bounded(data.get('client_company'), 200) or client.company_name
+        client.address = _bounded(data.get('location'), 300) or client.address
+    return client
+
+
 @app.route('/api/jobs', methods=['POST'])
 @login_required
 @owner_required
 def add_job():
     try:
         data  = request.json or {}
+        template = None
+        if data.get('template_id'):
+            template = JobTemplate.query.filter_by(
+                id=data.get('template_id'),
+                company_id=current_user.company_id,
+            ).first_or_404()
+            data = {
+                'title': template.title,
+                'platform': template.platform,
+                'tech_pay': template.default_tech_pay,
+                'job_pay': template.default_job_pay,
+                'notes': template.notes,
+                **data,
+            }
         title = (data.get('title') or '').strip()
         if not title:
             return jsonify({'error': 'Job title is required.'}), 400
@@ -813,6 +1376,11 @@ def add_job():
         if end_time <= start_time:
             return jsonify({'error': 'End time must be after start time.'}), 400
 
+        client = _job_client_from_data(current_user.company_id, data)
+        checklist = [
+            {'label': item, 'done': False}
+            for item in _json_list(template.checklist if template else '[]')
+        ]
         job = Job(
             company_id    = current_user.company_id,
             title         = title,
@@ -824,13 +1392,50 @@ def add_job():
             tech_pay      = _to_float(data.get('tech_pay')),
             job_pay       = _to_float(data.get('job_pay')),
             notes          = data.get('notes', ''),
-            client_name    = data.get('client_name', ''),
-            client_company = data.get('client_company', ''),
-            client_email   = data.get('client_email', ''),
+            client_name    = client.name if client else data.get('client_name', ''),
+            client_company = client.company_name if client else data.get('client_company', ''),
+            client_email   = client.email if client else data.get('client_email', ''),
+            client_id      = client.id if client else None,
+            job_template_id = template.id if template else None,
+            closeout_checklist = json.dumps(checklist),
+            signature_required = bool(template and template.require_signature),
         )
         if job.location:
             job.job_lat, job.job_lng = _geocode_address(job.location)
         db.session.add(job)
+        created_jobs = [job]
+        repeat = data.get('repeat')
+        repeat_count = max(1, min(_to_int(data.get('repeat_count'), 1), 52))
+        if repeat in ('weekly', 'monthly') and repeat_count > 1:
+            for occurrence in range(1, repeat_count):
+                offset = (
+                    timedelta(weeks=occurrence)
+                    if repeat == 'weekly'
+                    else relativedelta(months=occurrence)
+                )
+                repeated = Job(
+                    company_id=job.company_id,
+                    title=job.title,
+                    platform=job.platform,
+                    location=job.location,
+                    start_time=job.start_time + offset,
+                    end_time=job.end_time + offset,
+                    tech_assigned=job.tech_assigned,
+                    tech_pay=job.tech_pay,
+                    job_pay=job.job_pay,
+                    notes=job.notes,
+                    client_name=job.client_name,
+                    client_company=job.client_company,
+                    client_email=job.client_email,
+                    client_id=job.client_id,
+                    job_template_id=job.job_template_id,
+                    closeout_checklist=job.closeout_checklist,
+                    signature_required=job.signature_required,
+                    job_lat=job.job_lat,
+                    job_lng=job.job_lng,
+                )
+                db.session.add(repeated)
+                created_jobs.append(repeated)
         db.session.commit()
         _record_marketing_event(
             'first_job_created',
@@ -861,7 +1466,12 @@ def add_job():
         except Exception as ne:
             app.logger.error(f'Employee notification failed: {ne}')
 
-        return jsonify({'success': True, 'id': job.id})
+        return jsonify({
+            'success': True,
+            'id': job.id,
+            'ids': [created.id for created in created_jobs],
+            'created_count': len(created_jobs),
+        })
     except Exception as e:
         db.session.rollback()
         app.logger.exception('add_job failed')
@@ -916,6 +1526,7 @@ def update_job(job_id):
 
         old_tech     = job.tech_assigned or ''
         old_location = job.location or ''
+        client = _job_client_from_data(current_user.company_id, data)
 
         job.title          = title
         job.platform       = data.get('platform', job.platform)
@@ -926,9 +1537,10 @@ def update_job(job_id):
         job.tech_pay       = _to_float(data.get('tech_pay'))
         job.job_pay        = _to_float(data.get('job_pay'))
         job.notes          = data.get('notes', '')
-        job.client_name    = data.get('client_name', '')
-        job.client_company = data.get('client_company', '')
-        job.client_email   = data.get('client_email', '')
+        job.client_name    = client.name if client else data.get('client_name', '')
+        job.client_company = client.company_name if client else data.get('client_company', '')
+        job.client_email   = client.email if client else data.get('client_email', '')
+        job.client_id      = client.id if client else None
 
         new_status = data.get('status')
         if new_status and new_status != job.status:
@@ -1136,6 +1748,39 @@ def _notify_owner(job, subject, message):
         html = f'<p style="font-family:sans-serif;font-size:15px;">{message}</p><p style="font-family:sans-serif;font-size:13px;color:#6b7280;">Job: <strong>{job.title}</strong></p>'
         send_email(owner.email, subject, html)
 
+
+def _notify_client(job, event_type, headline, message):
+    if not job.client_email:
+        return False
+    company = db.session.get(Company, job.company_id)
+    if not company or not company.client_notifications_enabled:
+        return False
+    safe_title = html_lib.escape(job.title)
+    safe_headline = html_lib.escape(headline)
+    safe_message = html_lib.escape(message)
+    company_name = html_lib.escape(company.name if company else 'Your Service Provider')
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+      <div style="background:#17324f;color:#fff;padding:22px 28px;">
+        <div style="font-size:13px;color:#bfdbfe;">{company_name}</div>
+        <h1 style="font-size:21px;margin:5px 0 0;">{safe_headline}</h1>
+      </div>
+      <div style="padding:28px;">
+        <p style="font-size:15px;color:#334155;">{safe_message}</p>
+        <div style="background:#f8fafc;padding:14px 16px;border-radius:8px;color:#475569;"><strong>{safe_title}</strong><br>{html_lib.escape(job.location or 'Location to be confirmed')}</div>
+      </div>
+    </div>"""
+    sent = send_email(job.client_email, f'{headline} — {job.title}', html)
+    db.session.add(DispatchEvent(
+        company_id=job.company_id,
+        job_id=job.id,
+        event_type=event_type,
+        recipient=job.client_email,
+        status='sent' if sent else 'failed',
+    ))
+    db.session.commit()
+    return sent
+
 @app.route('/api/jobs/<int:job_id>/confirm', methods=['POST'])
 @login_required
 def confirm_job(job_id):
@@ -1153,6 +1798,7 @@ def on_the_way(job_id):
     job.status = 'on_the_way'
     db.session.commit()
     _notify_owner(job, f'On the Way — {job.title}', f'{current_user.name} is on the way to <strong>{job.title}</strong>.')
+    _notify_client(job, 'on_the_way', 'Your Technician Is on the Way', f'{current_user.name} is traveling to your service appointment.')
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/delayed', methods=['POST'])
@@ -1165,6 +1811,7 @@ def report_delayed(job_id):
     db.session.commit()
     reason_line = f'<br>Reason: {reason}' if reason else ''
     _notify_owner(job, f'Delay Alert — {job.title}', f'{current_user.name} is delayed on <strong>{job.title}</strong>.{reason_line}')
+    _notify_client(job, 'delayed', 'Service Update: Technician Delayed', f'{current_user.name} is delayed. {reason or "We will keep you updated."}')
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/resume-travel', methods=['POST'])
@@ -1174,6 +1821,7 @@ def resume_travel(job_id):
     job.status = 'on_the_way'
     db.session.commit()
     _notify_owner(job, f'En Route Again — {job.title}', f'{current_user.name} is back on the way to <strong>{job.title}</strong>.')
+    _notify_client(job, 'on_the_way_again', 'Your Technician Is En Route Again', f'{current_user.name} has resumed travel to your appointment.')
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/pause', methods=['POST'])
@@ -1223,6 +1871,7 @@ def clock_in(job_id):
             )
 
     _notify_owner(job, f'Employee Clocked In — {job.title}', f'{current_user.name} clocked in on <strong>{job.title}</strong> at {job.clock_in_at.strftime("%I:%M %p")}{loc_note}.')
+    _notify_client(job, 'arrived', 'Your Technician Has Arrived', f'{current_user.name} has arrived and started work.')
     return jsonify({'success': True})
 
 @app.route('/api/jobs/<int:job_id>/clock-out', methods=['POST'])
@@ -1235,67 +1884,60 @@ def clock_out(job_id):
     return jsonify({'success': True})
 
 def _send_auto_invoice(job):
-    """Create a Stripe Payment Link and email it to the client when a job completes."""
-    if not job.client_email or not job.job_pay:
-        return
+    """Persist an invoice, create hosted Checkout, and email it to the client."""
+    if not job.job_pay:
+        return {
+            'invoice_created': False,
+            'invoice_sent': False,
+            'warning': 'Add a job value before creating an invoice.',
+        }
     try:
-        # Route the charge to the owner's connected account so the money lands in
-        # THEIR bank. If they haven't connected yet, fall back to the platform account.
-        company = Company.query.get(job.company_id)
-        acct_opts = {}
-        if company and company.connect_charges_enabled and company.stripe_connect_id:
-            acct_opts = {'stripe_account': company.stripe_connect_id}
-        price = stripe.Price.create(
-            unit_amount=int(job.job_pay * 100),
-            currency='usd',
-            product_data={'name': job.title},
-            **acct_opts,
-        )
-        link = stripe.PaymentLink.create(
-            line_items=[{'price': price.id, 'quantity': 1}],
-            metadata={'job_id': str(job.id)},
-            **acct_opts,
-        )
-        job.stripe_payment_link = link.url
-        job.invoice_sent    = True
-        job.invoice_sent_at = datetime.utcnow()
+        invoice = _create_invoice_for_job(job)
         db.session.commit()
-
-        owner = User.query.filter_by(company_id=job.company_id, role='owner').first()
-        company_name = owner.company.name if owner and owner.company else 'Your Service Provider'
-        owner_name   = owner.name if owner else ''
-        client_name  = job.client_name or 'Valued Client'
-        amount_str   = f"${job.job_pay:.2f}"
-
-        html = f"""
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-          <div style="background:#1e3a5f;padding:24px 32px;">
-            <h1 style="color:#fff;margin:0;font-size:22px;">{company_name}</h1>
-            <p style="color:#a8c4e0;margin:4px 0 0;font-size:13px;">Invoice — Job Complete</p>
-          </div>
-          <div style="padding:32px;">
-            <p style="color:#374151;">Dear {client_name},</p>
-            <p style="color:#374151;">The work on <strong>{job.title}</strong> has been completed. Please find your invoice below.</p>
-            <table style="width:100%;border-collapse:collapse;margin:24px 0;">
-              <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Job</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.title}</td></tr>
-              <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Date</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.start_time.strftime('%B %d, %Y')}</td></tr>
-              <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Location</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.location or 'N/A'}</td></tr>
-              <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Amount Due</td><td style="padding:10px 14px;font-size:18px;font-weight:700;color:#1e3a5f;">{amount_str}</td></tr>
-            </table>
-            <a href="{link.url}" style="display:inline-block;background:#1e3a5f;color:#fff;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;margin:8px 0 24px;">Pay Now — {amount_str}</a>
-            <p style="color:#6b7280;font-size:13px;">Click the button above to pay securely by card. Thank you for your business.</p>
-            <p style="color:#374151;margin-top:24px;">— {owner_name}<br>{company_name}</p>
-          </div>
-        </div>"""
-        send_email(job.client_email, f'Invoice — {job.title} ({amount_str})', html)
+    except Exception as e:
+        app.logger.error(f'Auto invoice creation failed for job {job.id}: {e}')
+        return {
+            'invoice_created': False,
+            'invoice_sent': False,
+            'warning': 'The job was closed, but the invoice could not be created.',
+        }
+    if not job.client_email:
+        return {
+            'invoice_created': True,
+            'invoice_sent': False,
+            'invoice_id': invoice.id,
+            'warning': 'Invoice saved as a draft because the job has no client email.',
+        }
+    try:
+        sent = _send_invoice_record(invoice)
+        return {
+            'invoice_created': True,
+            'invoice_sent': bool(sent),
+            'invoice_id': invoice.id,
+            'warning': None if sent else 'Invoice saved as a draft because it could not be sent.',
+        }
     except Exception as e:
         app.logger.error(f'Auto invoice failed for job {job.id}: {e}')
+        return {
+            'invoice_created': True,
+            'invoice_sent': False,
+            'invoice_id': invoice.id,
+            'warning': 'Invoice saved as a draft because it could not be sent.',
+        }
 
 
 @app.route('/api/jobs/<int:job_id>/complete', methods=['POST'])
 @login_required
 def complete_job(job_id):
     job = _employee_job(job_id)
+    checklist = _json_list(job.closeout_checklist)
+    incomplete = [item for item in checklist if not item.get('done')]
+    if incomplete:
+        return jsonify({
+            'error': f'Complete all {len(incomplete)} remaining closeout item{"s" if len(incomplete) != 1 else ""}.',
+        }), 400
+    if job.signature_required and not job.signed_at:
+        return jsonify({'error': 'Collect the customer signature before completing this job.'}), 400
     job.status = 'awaiting_review'
     if not job.clock_out_at:
         job.clock_out_at = datetime.utcnow()
@@ -1309,11 +1951,72 @@ def complete_job(job_id):
     return jsonify({'success': True})
 
 
+@app.route('/api/jobs/<int:job_id>/closeout', methods=['GET', 'PUT'])
+@login_required
+def job_closeout(job_id):
+    job = _employee_job(job_id)
+    if request.method == 'PUT':
+        data = request.get_json(silent=True) or {}
+        submitted = data.get('checklist')
+        current = _json_list(job.closeout_checklist)
+        if not isinstance(submitted, list) or len(submitted) != len(current):
+            return jsonify({'error': 'Checklist does not match this job.'}), 400
+        normalized = []
+        for index, current_item in enumerate(current):
+            normalized.append({
+                'label': str(current_item.get('label') or '')[:200],
+                'done': bool((submitted[index] or {}).get('done')),
+            })
+        job.closeout_checklist = json.dumps(normalized)
+        db.session.commit()
+    return jsonify({
+        'checklist': _json_list(job.closeout_checklist),
+        'signature_required': bool(job.signature_required),
+        'signed': bool(job.signed_at),
+        'signature_name': job.signature_name,
+        'signed_at': job.signed_at.isoformat() if job.signed_at else None,
+    })
+
+
+@app.route('/api/jobs/<int:job_id>/signature', methods=['POST'])
+@login_required
+def save_job_signature(job_id):
+    job = _employee_job(job_id)
+    signer_name = _bounded(request.form.get('signer_name'), 200)
+    signature = request.files.get('signature')
+    if not signer_name or not signature:
+        return jsonify({'error': 'Signer name and signature are required.'}), 400
+    signature_bytes = signature.read(1_000_001)
+    if len(signature_bytes) > 1_000_000:
+        return jsonify({'error': 'Signature image is too large.'}), 413
+    if not signature_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
+        return jsonify({'error': 'Signature must be a PNG image.'}), 400
+    signature.seek(0)
+    filename = f'{uuid.uuid4().hex}.png'
+    storage.upload(signature, 'signatures', filename)
+    if job.signature_filename:
+        storage.delete('signatures', job.signature_filename)
+    job.signature_name = signer_name
+    job.signature_filename = filename
+    job.signed_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'signature_name': job.signature_name,
+        'signed_at': job.signed_at.isoformat(),
+    })
+
+
 @app.route('/api/jobs/<int:job_id>/close-and-invoice', methods=['POST'])
 @login_required
 @owner_required
 def close_and_invoice(job_id):
     job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    incomplete = [item for item in _json_list(job.closeout_checklist) if not item.get('done')]
+    if incomplete:
+        return jsonify({'error': 'Complete the closeout checklist before invoicing.'}), 400
+    if job.signature_required and not job.signed_at:
+        return jsonify({'error': 'Collect the customer signature before invoicing.'}), 400
     job.status = 'complete'
     if not job.completed_at:
         job.completed_at = datetime.utcnow()
@@ -1323,14 +2026,23 @@ def close_and_invoice(job_id):
         company_id=current_user.company_id,
         once=True,
     )
-    _send_auto_invoice(job)
-    if job.invoice_sent:
+    invoice_result = _send_auto_invoice(job) or {}
+    completion_message = 'The work is complete.'
+    if invoice_result.get('invoice_sent'):
+        completion_message += ' Your invoice and secure payment link have been emailed.'
+    elif invoice_result.get('invoice_created'):
+        completion_message += ' Your invoice has been prepared and will be sent separately.'
+    _notify_client(job, 'completed', 'Service Complete', completion_message)
+    if invoice_result.get('invoice_sent'):
         _record_marketing_event(
             'first_invoice_sent',
             company_id=current_user.company_id,
             once=True,
         )
-    return jsonify({'success': True})
+    return jsonify({
+        'success': True,
+        **invoice_result,
+    })
 
 @app.route('/api/jobs/<int:job_id>/employee-notes', methods=['POST'])
 @login_required
@@ -1369,11 +2081,40 @@ def send_email(to_addr, subject, html_body):
         return False
 
 
+def _run_invoice_reminders(now):
+    sent = 0
+    skipped = 0
+    candidates = InvoiceRecord.query.join(
+        Company, Company.id == InvoiceRecord.company_id
+    ).filter(
+        Company.invoice_reminders_enabled == True,
+        InvoiceRecord.status.in_(('sent', 'overdue', 'partial')),
+        InvoiceRecord.due_date.isnot(None),
+        InvoiceRecord.due_date < now,
+    ).all()
+    for invoice in candidates:
+        if invoice.reminder_sent_at and invoice.reminder_sent_at > now - timedelta(days=7):
+            skipped += 1
+            continue
+        invoice.status = 'overdue' if invoice.status == 'sent' else invoice.status
+        try:
+            if _send_invoice_record(invoice, reminder=True):
+                sent += 1
+            else:
+                skipped += 1
+        except Exception:
+            db.session.rollback()
+            app.logger.exception('Automatic invoice reminder failed for invoice %s', invoice.id)
+            skipped += 1
+    return {'sent': sent, 'skipped': skipped}
+
+
 def _run_lifecycle_emails():
     """Send at most one behavior-based trial email per eligible company."""
     now = datetime.utcnow()
     sent = 0
     skipped = 0
+    reminder_result = _run_invoice_reminders(now)
     companies = Company.query.filter_by(subscription_status='trialing').all()
     for company in companies:
         owner = User.query.filter_by(
@@ -1442,7 +2183,12 @@ def _run_lifecycle_emails():
         else:
             skipped += 1
 
-    return {'sent': sent, 'skipped': skipped}
+    return {
+        'sent': sent,
+        'skipped': skipped,
+        'invoice_reminders_sent': reminder_result['sent'],
+        'invoice_reminders_skipped': reminder_result['skipped'],
+    }
 
 
 @app.route('/internal/lifecycle/run', methods=['POST'])
@@ -1576,41 +2322,31 @@ def delete_document(doc_id):
 @owner_required
 def email_invoice(job_id):
     job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
-    data         = request.json or {}
-    client_email = data.get('client_email') or job.client_email
-    client_name  = data.get('client_name')  or job.client_name or 'Client'
-    if not client_email:
-        return jsonify({'error': 'No client email provided'}), 400
-    if data.get('client_email'):
-        job.client_email = client_email
-    if data.get('client_name'):
-        job.client_name = client_name
-    job.invoice_sent    = True
-    job.invoice_sent_at = datetime.utcnow()
+    data = request.json or {}
+    job.client_email = _bounded(data.get('client_email'), 200) or job.client_email
+    job.client_name = _bounded(data.get('client_name'), 200) or job.client_name
+    if not job.client_email:
+        return jsonify({'error': 'No client email provided.'}), 400
+    if not job.job_pay or job.job_pay <= 0:
+        return jsonify({'error': 'Add a positive job value before invoicing.'}), 400
+    invoice = _create_invoice_for_job(job)
+    invoice.client_email = job.client_email
+    invoice.client_name = job.client_name
     db.session.commit()
-
-    amount = f"${job.job_pay:.2f}" if job.job_pay else 'See attached'
-    html = f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-      <div style="background:#1e3a5f;padding:24px 32px;">
-        <h1 style="color:#fff;margin:0;font-size:22px;">{current_user.company.name}</h1>
-        <p style="color:#a8c4e0;margin:4px 0 0;font-size:13px;">Invoice</p>
-      </div>
-      <div style="padding:32px;">
-        <p style="color:#374151;">Dear {client_name},</p>
-        <p style="color:#374151;">Please find your invoice details below for the recently completed work.</p>
-        <table style="width:100%;border-collapse:collapse;margin:24px 0;">
-          <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Job</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.title}</td></tr>
-          <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Date</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.start_time.strftime('%B %d, %Y')}</td></tr>
-          <tr style="background:#f9fafb;"><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Location</td><td style="padding:10px 14px;font-size:14px;color:#1f2937;">{job.location or 'N/A'}</td></tr>
-          <tr><td style="padding:10px 14px;font-size:13px;font-weight:600;color:#6b7280;text-transform:uppercase;">Amount Due</td><td style="padding:10px 14px;font-size:18px;font-weight:700;color:#1e3a5f;">{amount}</td></tr>
-        </table>
-        <p style="color:#6b7280;font-size:13px;">Please remit payment at your earliest convenience. Thank you for your business.</p>
-        <p style="color:#374151;margin-top:24px;">— {current_user.name}<br>{current_user.company.name}</p>
-      </div>
-    </div>"""
-    ok = send_email(client_email, f'Invoice — {job.title}', html)
-    return jsonify({'success': ok, 'sent_to': client_email})
+    try:
+        sent = _send_invoice_record(invoice)
+    except Exception:
+        app.logger.exception('Job invoice delivery failed')
+        return jsonify({'error': 'Could not create the secure payment page.'}), 502
+    if not sent:
+        return jsonify({'error': 'Email is not configured or delivery failed.'}), 503
+    _record_marketing_event('first_invoice_sent', company_id=current_user.company_id, once=True)
+    return jsonify({
+        'success': True,
+        'sent_to': job.client_email,
+        'invoice_id': invoice.id,
+        'checkout_url': invoice.stripe_checkout_url,
+    })
 
 
 # ─────────────────────────────────────────
@@ -1690,11 +2426,14 @@ def work_log():
 @login_required
 @owner_required
 def settings():
+    company = db.session.get(Company, current_user.company_id)
     creds = {
         c.platform: c
         for c in PlatformCredential.query.filter_by(company_id=current_user.company_id).all()
     }
     if request.method == 'POST':
+        company.invoice_reminders_enabled = request.form.get('invoice_reminders_enabled') == 'on'
+        company.client_notifications_enabled = request.form.get('client_notifications_enabled') == 'on'
         for platform in ('workmarket', 'fieldnation'):
             api_key    = request.form.get(f'{platform}_key', '').strip()
             api_secret = request.form.get(f'{platform}_secret', '').strip()
@@ -1717,7 +2456,7 @@ def settings():
         db.session.commit()
         flash('Settings saved.')
         return redirect(url_for('settings'))
-    return render_template('settings.html', creds=creds, company=current_user.company)
+    return render_template('settings.html', creds=creds, company=company)
 
 
 @app.route('/growth')
@@ -2143,7 +2882,12 @@ def sync_platform():
                         from dateutil import parser as dateparser
                         start_dt = dateparser.parse(start_str)
                         end_dt   = dateparser.parse(end_str) if end_str != start_str else start_dt.replace(hour=start_dt.hour+1)
-                    except Exception:
+                    except Exception as e:
+                        app.logger.warning(
+                            'Skipped WorkMarket assignment %s with invalid schedule: %s',
+                            a.get('id', ''),
+                            e,
+                        )
                         continue
                     location = a.get('location', {})
                     addr = location.get('full_address') or location.get('address1') or '' if isinstance(location, dict) else str(location)
@@ -2193,7 +2937,12 @@ def sync_platform():
                         from dateutil import parser as dateparser
                         start_dt = dateparser.parse(start_str)
                         end_dt   = dateparser.parse(end_str) if end_str and end_str != start_str else start_dt.replace(hour=min(start_dt.hour+1,23))
-                    except Exception:
+                    except Exception as e:
+                        app.logger.warning(
+                            'Skipped Field Nation work order %s with invalid schedule: %s',
+                            wo.get('id', ''),
+                            e,
+                        )
                         continue
                     location = wo.get('location', {}) or {}
                     addr = location.get('address1') or location.get('city') or '' if isinstance(location, dict) else ''
@@ -2307,7 +3056,6 @@ def create_checkout():
         db.session.commit()
     session = stripe.checkout.Session.create(
         customer=company.stripe_customer_id,
-        payment_method_types=['card'],
         mode='subscription',
         line_items=[{'price': selected_price_id, 'quantity': 1}],
         allow_promotion_codes=True,
@@ -2419,6 +3167,7 @@ def stripe_webhook():
             event = stripe.Webhook.construct_event(payload, sig_header, secret)
             break
         except Exception:
+            app.logger.debug('Stripe webhook signature did not match one configured secret.')
             continue
     if event is None:
         return jsonify({'error': 'Invalid signature'}), 400
@@ -2441,12 +3190,32 @@ def stripe_webhook():
             company.subscription_status = 'canceled'
             db.session.commit()
     elif event['type'] == 'checkout.session.completed':
-        job_id = obj.get('metadata', {}).get('job_id')
-        if job_id:
-            job = Job.query.get(int(job_id))
+        metadata = obj.get('metadata', {})
+        invoice_id = metadata.get('invoice_id')
+        job_id = metadata.get('job_id')
+        amount_paid = (obj.get('amount_total') or 0) / 100
+        invoice = db.session.get(InvoiceRecord, int(invoice_id)) if invoice_id else None
+        if invoice and invoice.status != 'paid':
+            invoice.status = 'paid'
+            invoice.amount_paid = amount_paid
+            invoice.paid_at = datetime.utcnow()
+            invoice.stripe_checkout_session_id = obj.get('id')
+            if invoice.job_id:
+                job = db.session.get(Job, invoice.job_id)
+                if job:
+                    job.payment_received = True
+                    job.amount_paid = amount_paid
+            db.session.commit()
+            _record_marketing_event(
+                'first_payment_recorded',
+                company_id=invoice.company_id,
+                once=True,
+            )
+        elif job_id:
+            job = db.session.get(Job, int(job_id))
             if job and not job.payment_received:
                 job.payment_received = True
-                job.amount_paid      = (obj.get('amount_total') or 0) / 100
+                job.amount_paid = amount_paid
                 db.session.commit()
                 _record_marketing_event(
                     'first_payment_recorded',
@@ -2489,6 +3258,13 @@ with app.app_context():
             ('client_company',   'ALTER TABLE jobs ADD COLUMN client_company VARCHAR(200)'),
             ('job_lat',          'ALTER TABLE jobs ADD COLUMN job_lat FLOAT'),
             ('job_lng',          'ALTER TABLE jobs ADD COLUMN job_lng FLOAT'),
+            ('client_id',        'ALTER TABLE jobs ADD COLUMN client_id INTEGER REFERENCES clients(id)'),
+            ('job_template_id',  'ALTER TABLE jobs ADD COLUMN job_template_id INTEGER REFERENCES job_templates(id)'),
+            ('closeout_checklist', 'ALTER TABLE jobs ADD COLUMN closeout_checklist TEXT DEFAULT \'[]\''),
+            ('signature_name',   'ALTER TABLE jobs ADD COLUMN signature_name VARCHAR(200)'),
+            ('signature_filename', 'ALTER TABLE jobs ADD COLUMN signature_filename VARCHAR(300)'),
+            ('signed_at',        'ALTER TABLE jobs ADD COLUMN signed_at TIMESTAMP'),
+            ('signature_required', 'ALTER TABLE jobs ADD COLUMN signature_required BOOLEAN DEFAULT FALSE'),
         ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
         ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
         ('stripe_payment_link',     'ALTER TABLE jobs ADD COLUMN stripe_payment_link VARCHAR(500)'),
@@ -2504,6 +3280,8 @@ with app.app_context():
         ('acquisition_campaign',    'ALTER TABLE companies ADD COLUMN acquisition_campaign VARCHAR(100)'),
         ('acquisition_content',     'ALTER TABLE companies ADD COLUMN acquisition_content VARCHAR(100)'),
         ('acquisition_landing',     'ALTER TABLE companies ADD COLUMN acquisition_landing VARCHAR(300)'),
+        ('invoice_reminders_enabled', 'ALTER TABLE companies ADD COLUMN invoice_reminders_enabled BOOLEAN DEFAULT FALSE'),
+        ('client_notifications_enabled', 'ALTER TABLE companies ADD COLUMN client_notifications_enabled BOOLEAN DEFAULT FALSE'),
         ]:
             try:
                 conn.execute(text(ddl))
