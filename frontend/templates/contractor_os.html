@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FieldBase - Contractor Business OS</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6f9;color:#172033;min-height:100vh}
+    header{background:#17324f;color:#fff;padding:16px 32px;display:flex;justify-content:space-between;align-items:center}header h1{font-size:20px}header span{color:#bfdbfe;font-size:13px}
+    .container{max-width:1220px;margin:26px auto;padding:0 22px 70px}.page-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:20px}.page-head h2{color:#17324f;font-size:26px}.page-head p{color:#64748b;font-size:14px;line-height:1.5;margin-top:5px;max-width:720px}
+    .status{min-height:18px;margin-bottom:12px;color:#166534;font-size:13px;font-weight:700}.alert{color:#b91c1c}.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}.metric{background:#fff;border:1px solid #e2e8f0;border-radius:11px;padding:16px}.metric span{display:block;color:#64748b;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em}.metric strong{display:block;color:#17324f;font-size:24px;margin-top:7px}.metric.warn strong{color:#b45309}
+    .tabs{display:flex;gap:7px;overflow-x:auto;padding-bottom:9px;margin-bottom:14px}.tab{border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:999px;padding:9px 14px;font:inherit;font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer}.tab.active{background:#17324f;border-color:#17324f;color:#fff}.panel{display:none}.panel.active{display:block}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.wide{grid-column:1/-1}.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:19px;box-shadow:0 1px 3px rgba(15,23,42,.05)}.card h3{color:#17324f;font-size:15px;margin-bottom:5px}.card>p{color:#64748b;font-size:12px;line-height:1.5;margin-bottom:14px}
+    .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}label{font-size:11px;font-weight:800;color:#475569}input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:7px;padding:9px 10px;font:inherit;font-size:13px;background:#fff}textarea{min-height:80px;resize:vertical}.btn{border:0;border-radius:7px;padding:9px 13px;background:#2563eb;color:#fff;font:inherit;font-size:12px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn:hover{background:#1d4ed8}.btn.secondary{background:#fff;color:#17324f;border:1px solid #cbd5e1}.btn.success{background:#15803d}.btn.danger{background:#fff;color:#b91c1c;border:1px solid #fecaca}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+    .record-list{display:flex;flex-direction:column;gap:8px}.record{border:1px solid #e2e8f0;border-radius:9px;padding:12px;display:flex;justify-content:space-between;gap:12px}.record h4{font-size:13px;color:#17324f}.record small{display:block;color:#64748b;margin-top:4px;line-height:1.4}.badge{display:inline-flex;border-radius:999px;padding:3px 8px;background:#f1f5f9;color:#475569;font-size:10px;font-weight:850;text-transform:uppercase}.badge.approved,.badge.active,.badge.paid,.badge.deposit_paid{background:#dcfce7;color:#166534}.badge.pending,.badge.sent,.badge.deposit_due{background:#fef3c7;color:#92400e}.badge.rejected,.badge.declined{background:#fee2e2;color:#991b1b}.money{font-weight:850;color:#17324f;white-space:nowrap}.empty{border:1px dashed #cbd5e1;border-radius:9px;padding:20px;text-align:center;color:#64748b;font-size:12px}
+    .assistant-answer{background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:13px;color:#1e3a5f;font-size:13px;line-height:1.5;margin-top:10px}.assistant-answer ul{margin:7px 0 0 18px}.advisor{margin-top:12px;border-radius:9px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;line-height:1.6}.profit-table{width:100%;border-collapse:collapse;font-size:12px}.profit-table th,.profit-table td{text-align:left;border-bottom:1px solid #e2e8f0;padding:9px 7px}.profit-table th{font-size:10px;text-transform:uppercase;color:#64748b}.profit-negative{color:#b91c1c;font-weight:800}.profit-positive{color:#166534;font-weight:800}
+    @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.wide{grid-column:auto}}@media(max-width:620px){header{padding:14px 15px}.container{padding:0 11px 60px}.page-head{flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.record{flex-direction:column}.profit-wrap{overflow-x:auto}}
+  </style>
+  {% include '_app_foundation.html' %}
+</head>
+<body>
+<header><h1>FieldBase</h1><span>Contractor Business OS</span></header>
+{% set active_page='contractor-os' %}{% include '_app_nav.html' %}
+<main class="container" id="main-content">
+  <div class="page-head"><div><h2>Run the Business, Not the Paperwork</h2><p>Protect scope, judge jobs before accepting them, prove completed work, watch profit, manage contractors, and keep recurring revenue moving.</p></div><a class="btn secondary" href="/calendar">Open Schedule</a></div>
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+
+  <section class="metrics" aria-label="Business attention">
+    <div class="metric"><span>Open invoices</span><strong>${{ '%.0f'|format(attention.unpaid_total) }}</strong></div>
+    <div class="metric {% if attention.pending_changes %}warn{% endif %}"><span>Change approvals</span><strong>{{ attention.pending_changes }}</strong></div>
+    <div class="metric {% if attention.low_profit %}warn{% endif %}"><span>Low-profit jobs</span><strong>{{ attention.low_profit }}</strong></div>
+    <div class="metric {% if attention.compliance_due %}warn{% endif %}"><span>Docs expiring</span><strong>{{ attention.compliance_due }}</strong></div>
+    <div class="metric"><span>Agreements due</span><strong>{{ attention.agreements_due }}</strong></div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-panel="command">Command Center</button>
+    <button class="tab" data-panel="protect">Protect & Prove</button>
+    <button class="tab" data-panel="sell">Estimates & Recurring</button>
+    <button class="tab" data-panel="people">Contractors & Compliance</button>
+    <button class="tab" data-panel="followup">Warranty & Growth</button>
+  </div>
+
+  <section class="panel active" id="panel-command">
+    <div class="grid">
+      <article class="card">
+        <h3>Ask FieldBase</h3><p>Plain-English answers from your live FieldBase records.</p>
+        <form id="assistant-form">
+          <div class="field"><label for="assistant-question">Business question</label><input id="assistant-question" name="question" placeholder="What needs my attention today?" required></div>
+          <div class="actions"><button class="btn" type="submit">Get Answer</button></div>
+        </form>
+        <div id="assistant-answer"></div>
+      </article>
+      <article class="card">
+        <h3>Universal Job Inbox</h3><p>Paste an email, work order, or dictated note. FieldBase extracts a reusable draft.</p>
+        <form id="intake-form">
+          <div class="field"><label for="intake-text">Work order text</label><textarea id="intake-text" name="text" placeholder="Network refresh&#10;Pay: $650&#10;2026-08-03 09:00&#10;123 Market Street..." required></textarea></div>
+          <div class="actions"><button class="btn" type="submit">Extract Job</button></div>
+        </form>
+        <div id="intake-result"></div>
+      </article>
+      <article class="card wide">
+        <h3>Recent Intake</h3><p>Turn extracted work orders into scheduled, scope-locked jobs.</p>
+        <div class="record-list">
+          {% for record,data in records.intake[:8] %}
+          <div class="record" id="record-{{ record.id }}"><div><h4>{{ record.title }}</h4><small>{{ data.get('location') or 'Location not found' }} · {{ data.get('client_email') or 'No email found' }}</small><span class="badge {{ record.status }}">{{ record.status }}</span></div><div class="actions">{% if record.status == 'new' %}<button class="btn" onclick="convertIntake({{ record.id }})">Create Job</button>{% endif %}<span class="money">${{ '%.2f'|format(record.amount or 0) }}</span></div></div>
+          {% else %}<div class="empty">Paste the next work order above.</div>{% endfor %}
+        </div>
+      </article>
+      <article class="card wide">
+        <h3>Client Communication Timeline</h3><p>Dispatch, arrival, completion, and other automated client updates.</p>
+        <div class="record-list">{% for event in dispatch_events %}<div class="record"><div><h4>{{ event.event_type.replace('_',' ')|title }}</h4><small>Job {{ event.job_id }} · {{ event.recipient or 'No recipient' }} · {{ event.created_at.strftime('%b %d, %Y %I:%M %p') }}</small></div><span class="badge {{ event.status }}">{{ event.status }}</span></div>{% else %}<div class="empty">Client notifications will appear here after they are enabled and sent.</div>{% endfor %}</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-protect">
+    <div class="grid">
+      <article class="card">
+        <h3>Job Acceptance Advisor</h3><p>Calculate true earnings before saying yes.</p>
+        <form id="advisor-form" class="form-grid">
+          <div class="field"><label>Offered Pay</label><input name="job_pay" type="number" step=".01" min="0" required></div>
+          <div class="field"><label>Estimated Hours</label><input name="estimated_hours" type="number" step=".25" min=".25" required></div>
+          <div class="field"><label>Round-Trip Miles</label><input name="travel_miles" type="number" step=".1" min="0"></div>
+          <div class="field"><label>Materials</label><input name="materials_cost" type="number" step=".01" min="0"></div>
+          <div class="field"><label>Platform Fee %</label><input name="platform_fee_percent" type="number" step=".1" min="0" max="100"></div>
+          <div class="field"><label>Helper Pay</label><input name="helper_pay" type="number" step=".01" min="0"></div>
+          <div class="field full"><label>Scope</label><textarea name="scope"></textarea></div>
+          <div class="field full"><label>Payment Terms</label><input name="payment_terms" placeholder="Net 15 after approval"></div>
+          <div class="actions full"><button class="btn" type="submit">Analyze Offer</button></div>
+        </form>
+        <div id="advisor-result"></div>
+      </article>
+      <article class="card">
+        <h3>Scope Lock & Change Order</h3><p>Freeze the agreement, then get written approval for anything extra.</p>
+        <form class="record-form form-grid">
+          <input type="hidden" name="record_type" value="change_order">
+          <div class="field full"><label>Job</label><select name="job_id" required><option value="">Choose job</option>{% for job in jobs %}<option value="{{ job.id }}">{{ job.title }} · {{ job.start_time.strftime('%b %d') }}</option>{% endfor %}</select></div>
+          <div class="field full"><label>Change Title</label><input name="title" required placeholder="Additional cable run"></div>
+          <div class="field"><label>Added Price</label><input name="amount" type="number" min="0" step=".01" required></div>
+          <div class="field"><label>Added Time</label><input name="added_hours" type="number" min="0" step=".25"></div>
+          <div class="field full"><label>Reason and Added Scope</label><textarea name="description" required></textarea></div>
+          <div class="actions full"><button class="btn" type="submit">Create Approval Link</button></div>
+        </form>
+      </article>
+      <article class="card wide">
+        <h3>Change Orders</h3><p>Pending, approved, and declined scope changes.</p>
+        <div class="record-list">
+          {% for record,data in records.change_order %}
+          <div class="record"><div><h4>{{ record.title }}</h4><small>{{ data.get('description','') }}</small><span class="badge {{ record.status }}">{{ record.status }}</span></div><div><div class="money">${{ '%.2f'|format(record.amount or 0) }}</div><div class="actions">{% if record.public_token %}<a class="btn secondary" target="_blank" rel="noopener" href="/portal/record/{{ record.public_token }}">Open</a>{% endif %}{% if record.status == 'pending' %}<button class="btn" onclick="recordAction({{ record.id }},'send')">Send</button>{% endif %}</div></div></div>
+          {% else %}<div class="empty">No change orders recorded.</div>{% endfor %}
+        </div>
+      </article>
+      <article class="card wide">
+        <h3>True Job Profitability & Proof</h3><p>Revenue minus labor, materials, platform fees, mileage estimate, and other costs.</p>
+        <div class="profit-wrap"><table class="profit-table"><thead><tr><th>Job</th><th>Revenue</th><th>Profit</th><th>Margin</th><th>Effective/hr</th><th>Protection</th></tr></thead><tbody>
+          {% for job,m in profit_rows %}
+          <tr><td><strong>{{ job.title }}</strong><br><small>{{ job.start_time.strftime('%b %d, %Y') }}</small></td><td>${{ '%.2f'|format(m.revenue) }}</td><td class="{{ 'profit-positive' if m.profit >= 0 else 'profit-negative' }}">${{ '%.2f'|format(m.profit) }}</td><td>{{ m.margin }}%</td><td class="{{ 'profit-negative' if m.effective_hourly < 30 else 'profit-positive' }}">${{ '%.2f'|format(m.effective_hourly) }}</td><td><div class="actions"><button class="btn secondary" onclick="editEconomics({{ job.id }})">Costs</button><a class="btn" href="/api/jobs/{{ job.id }}/proof-package.pdf">Proof PDF</a></div></td></tr>
+          {% else %}<tr><td colspan="6">Add job values to start measuring profitability.</td></tr>{% endfor %}
+        </tbody></table></div>
+      </article>
+      {% for group_name,group_rows in profit_groups.items() %}
+      <article class="card">
+        <h3>Profit by {{ group_name|title }}</h3>
+        <div class="profit-wrap"><table class="profit-table"><thead><tr><th>{{ group_name|title }}</th><th>Jobs</th><th>Revenue</th><th>Profit</th></tr></thead><tbody>{% for name,m in group_rows[:8] %}<tr><td>{{ name }}</td><td>{{ m.jobs }}</td><td>${{ '%.0f'|format(m.revenue) }}</td><td class="{{ 'profit-positive' if m.profit >= 0 else 'profit-negative' }}">${{ '%.0f'|format(m.profit) }}</td></tr>{% else %}<tr><td colspan="4">No job economics yet.</td></tr>{% endfor %}</tbody></table></div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel" id="panel-sell">
+    <div class="grid">
+      <article class="card">
+        <h3>Create Estimate</h3><p>Client approval, deposit, then one-click job conversion.</p>
+        <form class="record-form form-grid">
+          <input type="hidden" name="record_type" value="estimate">
+          <div class="field full"><label>Client</label><select name="client_id" required><option value="">Choose client</option>{% for client in clients %}<option value="{{ client.id }}">{{ client.name }}{% if client.company_name %} - {{ client.company_name }}{% endif %}</option>{% endfor %}</select></div>
+          <div class="field full"><label>Estimate Title</label><input name="title" required></div>
+          <div class="field"><label>Total</label><input name="amount" type="number" min="0" step=".01" required></div>
+          <div class="field"><label>Deposit %</label><input name="deposit_percent" type="number" min="0" max="100" step="1" value="25"></div>
+          <div class="field"><label>Duration Minutes</label><input name="duration_minutes" type="number" min="15" value="120"></div>
+          <div class="field"><label>Expiration</label><input name="due_at" type="date"></div>
+          <div class="field full"><label>Customer-Facing Scope</label><textarea name="scope" required></textarea></div>
+          <div class="field full"><label>Options / Add-ons</label><textarea name="options" placeholder="Optional monitoring: $25/month"></textarea></div>
+          <div class="actions full"><button class="btn" type="submit">Save Estimate</button></div>
+        </form>
+      </article>
+      <article class="card">
+        <h3>Service Agreement</h3><p>Generate monthly or quarterly work automatically.</p>
+        <form class="record-form form-grid">
+          <input type="hidden" name="record_type" value="service_agreement">
+          <div class="field full"><label>Client</label><select name="client_id" required><option value="">Choose client</option>{% for client in clients %}<option value="{{ client.id }}">{{ client.name }}</option>{% endfor %}</select></div>
+          <div class="field full"><label>Agreement Name</label><input name="title" required></div>
+          <div class="field"><label>Visit Price</label><input name="amount" type="number" min="0" step=".01" required></div>
+          <div class="field"><label>Cadence</label><select name="cadence"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></div>
+          <div class="field"><label>Next Visit</label><input name="due_at" type="date" required></div>
+          <div class="field"><label>Duration Minutes</label><input name="duration_minutes" type="number" min="15" value="120"></div>
+          <div class="field full"><label>Included Service</label><textarea name="scope" required></textarea></div>
+          <div class="actions full"><button class="btn" type="submit">Start Agreement</button><button class="btn secondary" type="button" onclick="runAgreements()">Generate Due Jobs</button></div>
+        </form>
+      </article>
+      <article class="card wide">
+        <h3>Estimates</h3><p>Share approval links and convert won estimates into jobs.</p>
+        <div class="record-list">{% for record,data in records.estimate %}<div class="record"><div><h4>{{ record.title }}</h4><small>Deposit {{ data.get('deposit_percent','0') }}% · {{ data.get('scope','')[:150] }}</small><span class="badge {{ record.status }}">{{ record.status.replace('_',' ') }}</span></div><div><div class="money">${{ '%.2f'|format(record.amount or 0) }}</div><div class="actions"><a class="btn secondary" target="_blank" rel="noopener" href="/portal/record/{{ record.public_token }}">Open</a>{% if record.status in ('draft','sent') %}<button class="btn" onclick="recordAction({{ record.id }},'send')">Send</button>{% endif %}{% if record.status == 'deposit_paid' or (record.status == 'approved' and data.get('deposit_percent','0')|float == 0) %}<button class="btn success" onclick="convertEstimate({{ record.id }})">Create Job</button>{% endif %}</div></div></div>{% else %}<div class="empty">No estimates yet.</div>{% endfor %}</div>
+      </article>
+      <article class="card wide">
+        <h3>Recurring Agreements</h3>
+        <div class="record-list">{% for record,data in records.service_agreement %}<div class="record"><div><h4>{{ record.title }}</h4><small>{{ data.get('cadence','monthly')|title }} · Next {{ record.due_at.strftime('%b %d, %Y') if record.due_at else 'not set' }}</small><span class="badge {{ record.status }}">{{ record.status }}</span></div><span class="money">${{ '%.2f'|format(record.amount or 0) }}/visit</span></div>{% else %}<div class="empty">No recurring agreements yet.</div>{% endfor %}</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-people">
+    <div class="grid">
+      <article class="card">
+        <h3>Trusted Contractor Bench</h3><p>Keep rate, trade, availability, and reliability details together.</p>
+        <form class="record-form form-grid">
+          <input type="hidden" name="record_type" value="contractor">
+          <div class="field full"><label>Name</label><input name="title" required></div>
+          <div class="field"><label>Email</label><input name="email" type="email"></div>
+          <div class="field"><label>Phone</label><input name="phone" type="tel"></div>
+          <div class="field"><label>Trade</label><input name="trade"></div>
+          <div class="field"><label>Hourly Rate</label><input name="hourly_rate" type="number" min="0" step=".01"></div>
+          <div class="field"><label>Availability</label><input name="availability" placeholder="Weekdays, after hours"></div>
+          <div class="field"><label>Reliability Score</label><input name="reliability" type="number" min="1" max="5" step=".1"></div>
+          <div class="actions full"><button class="btn" type="submit">Add Contractor</button></div>
+        </form>
+      </article>
+      <article class="card">
+        <h3>Compliance Vault</h3><p>W-9s, insurance, licenses, and expiration alerts.</p>
+        <form id="compliance-form" class="form-grid" enctype="multipart/form-data">
+          <div class="field full"><label>Document Title</label><input name="title" required placeholder="Jordan Lee - Liability Insurance"></div>
+          <div class="field"><label>Type</label><select name="document_type"><option>W-9</option><option>Insurance</option><option>License</option><option>Certification</option><option>Agreement</option></select></div>
+          <div class="field"><label>Team Member</label><select name="user_id"><option value="">Business-level</option>{% for user in team %}<option value="{{ user.id }}">{{ user.name }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Expires</label><input name="due_at" type="date"></div>
+          <div class="field"><label>PDF or Image</label><input name="document" type="file" accept=".pdf,.png,.jpg,.jpeg" required></div>
+          <div class="actions full"><button class="btn" type="submit">Store Document</button></div>
+        </form>
+      </article>
+      <article class="card">
+        <h3>Contractor Payout Approval</h3><p>Approve what is owed without automatically moving funds.</p>
+        <form class="record-form form-grid">
+          <input type="hidden" name="record_type" value="payout">
+          <div class="field full"><label>Payout Description</label><input name="title" required placeholder="Job 104 - Technician payout"></div>
+          <div class="field"><label>Team Member</label><select name="user_id"><option value="">External contractor</option>{% for user in team %}<option value="{{ user.id }}">{{ user.name }}</option>{% endfor %}</select></div>
+          <div class="field"><label>External Name</label><input name="contractor_name"></div>
+          <div class="field"><label>Job</label><select name="job_id"><option value="">Not linked</option>{% for job in jobs %}<option value="{{ job.id }}">{{ job.title }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Amount</label><input name="amount" type="number" step=".01" min="0" required></div>
+          <div class="actions full"><button class="btn" type="submit">Add to Approval Queue</button></div>
+        </form>
+      </article>
+      <article class="card">
+        <h3>Approval Queue</h3><p>Download approved payouts for bookkeeping and year-end contractor reporting.</p><div class="actions" style="margin-bottom:12px"><a class="btn secondary" href="/api/contractor-os/payouts.csv">Export Payout CSV</a></div>
+        <div class="record-list">{% for record,data in records.payout %}<div class="record"><div><h4>{{ record.title }}</h4><small>{{ data.get('contractor_name','') }}</small><span class="badge {{ record.status }}">{{ record.status }}</span></div><div><div class="money">${{ '%.2f'|format(record.amount or 0) }}</div>{% if record.status == 'pending' %}<div class="actions"><button class="btn success" onclick="recordAction({{ record.id }},'approve')">Approve</button><button class="btn danger" onclick="recordAction({{ record.id }},'reject')">Reject</button></div>{% endif %}</div></div>{% else %}<div class="empty">Nothing waiting for approval.</div>{% endfor %}</div>
+      </article>
+      <article class="card wide">
+        <h3>Contractor & Compliance Records</h3>
+        <div class="record-list">{% for record,data in records.contractor + records.compliance %}<div class="record"><div><h4>{{ record.title }}</h4><small>{% if record.record_type == 'contractor' %}{{ data.get('trade','General') }} · {{ data.get('email','No email') }}{% else %}{{ data.get('document_type','Document') }} · Expires {{ record.due_at.strftime('%b %d, %Y') if record.due_at else 'not set' }}{% endif %}</small><span class="badge {{ record.status }}">{{ record.record_type.replace('_',' ') }}</span></div><div>{% if data.get('hourly_rate') %}<span class="money">${{ data.get('hourly_rate') }}/hr</span>{% endif %}<div class="actions">{% if record.record_type == 'contractor' %}<button class="btn secondary" onclick="assignContractor({{ record.id }})">Offer Job</button>{% elif data.get('filename') %}<a class="btn secondary" href="/api/contractor-os/compliance/{{ record.id }}/document">Open Document</a>{% endif %}</div></div></div>{% else %}<div class="empty">No contractor or compliance records yet.</div>{% endfor %}</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-followup">
+    <div class="grid">
+      <article class="card">
+        <h3>Review & Referral Request</h3><p>Send only after a successful job and client approval.</p>
+        <form class="record-form form-grid">
+          <input type="hidden" name="record_type" value="review_request">
+          <div class="field full"><label>Client</label><select name="client_id" required><option value="">Choose client</option>{% for client in clients %}<option value="{{ client.id }}">{{ client.name }}</option>{% endfor %}</select></div>
+          <div class="field full"><label>Request Title</label><input name="title" required value="How did we do?"></div>
+          <div class="field full"><label>Review Link</label><input name="review_url" type="url" placeholder="https://g.page/r/..."></div>
+          <div class="field full"><label>Referral Offer</label><input name="referral_offer" placeholder="$25 credit for each referral"></div>
+          <div class="actions full"><button class="btn" type="submit">Prepare Request</button></div>
+        </form>
+      </article>
+      <article class="card">
+        <h3>Warranty & Callback Link</h3><p>Attach a callback to the original job and expose hidden rework.</p>
+        <form id="callback-form" class="form-grid">
+          <div class="field full"><label>Callback Job</label><select name="job_id" required><option value="">Choose callback job</option>{% for job in jobs %}<option value="{{ job.id }}">{{ job.title }}</option>{% endfor %}</select></div>
+          <div class="field full"><label>Original Job</label><select name="callback_job_id" required><option value="">Choose original job</option>{% for job in jobs %}<option value="{{ job.id }}">{{ job.title }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Warranty Until</label><input name="warranty_until" type="date"></div>
+          <div class="actions full"><button class="btn" type="submit">Link Callback</button></div>
+        </form>
+      </article>
+      <article class="card wide">
+        <h3>Prepared Follow-ups</h3>
+        <div class="record-list">{% for record,data in records.review_request %}<div class="record"><div><h4>{{ record.title }}</h4><small>{{ data.get('referral_offer','') }}</small><span class="badge {{ record.status }}">{{ record.status }}</span></div><div class="actions">{% if record.status == 'draft' %}<button class="btn" onclick="recordAction({{ record.id }},'send')">Send</button>{% endif %}<a class="btn secondary" target="_blank" rel="noopener" href="/portal/record/{{ record.public_token }}">Preview</a></div></div>{% else %}<div class="empty">No review requests prepared.</div>{% endfor %}</div>
+      </article>
+    </div>
+  </section>
+</main>
+<script>
+const statusBox=document.getElementById('status');
+const JOB_CHOICES=[{% for job in jobs[:20] %}{id:{{ job.id }},title:{{ job.title|tojson }}},{% endfor %}];
+document.querySelectorAll('.field').forEach((field,index)=>{const label=field.querySelector('label');const control=field.querySelector('input,select,textarea');if(label&&control&&!control.id){control.id=`business-os-field-${index}`;label.htmlFor=control.id}});
+function statusMessage(message,error=false){statusBox.textContent=message;statusBox.className=`status ${error?'alert':''}`;if(!error)setTimeout(()=>statusBox.textContent='',3500)}
+function formObject(form){const data=Object.fromEntries(new FormData(form).entries());for(const key of Object.keys(data)){if(data[key]==='')delete data[key]}return data}
+document.querySelectorAll('.tab').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(item=>item.classList.remove('active'));document.querySelectorAll('.panel').forEach(item=>item.classList.remove('active'));button.classList.add('active');document.getElementById(`panel-${button.dataset.panel}`).classList.add('active')}));
+document.querySelectorAll('.record-form').forEach(form=>form.addEventListener('submit',async event=>{event.preventDefault();const response=await fetch('/api/contractor-os/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(formObject(form))});const data=await response.json();if(!response.ok)return statusMessage(data.error||'Could not save record.',true);statusMessage(data.public_url?`Saved. Client link: ${data.public_url}`:'Saved.');setTimeout(()=>location.reload(),900)}));
+document.getElementById('compliance-form').addEventListener('submit',async event=>{event.preventDefault();const response=await fetch('/api/contractor-os/compliance',{method:'POST',body:new FormData(event.target)});const data=await response.json();if(!response.ok)return statusMessage(data.error||'Upload failed.',true);statusMessage('Compliance document stored.');setTimeout(()=>location.reload(),800)});
+async function recordAction(id,action){const response=await fetch(`/api/contractor-os/records/${id}/${action}`,{method:'POST'});const data=await response.json();if(!response.ok)return statusMessage(data.error||'Action failed.',true);statusMessage(`Record ${data.status}.`);setTimeout(()=>location.reload(),700)}
+document.getElementById('assistant-form').addEventListener('submit',async event=>{event.preventDefault();const response=await fetch('/api/contractor-assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(formObject(event.target))});const data=await response.json();const items=(data.items||[]).map(item=>`<li>${escapeText(item)}</li>`).join('');document.getElementById('assistant-answer').innerHTML=`<div class="assistant-answer"><strong>${escapeText(data.answer||data.error)}</strong>${items?`<ul>${items}</ul>`:''}</div>`});
+document.getElementById('advisor-form').addEventListener('submit',async event=>{event.preventDefault();const response=await fetch('/api/job-acceptance-advisor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(formObject(event.target))});const data=await response.json();const warnings=(data.warnings||[]).map(item=>`<li>${escapeText(item)}</li>`).join('');document.getElementById('advisor-result').innerHTML=`<div class="advisor"><strong>Verdict: ${escapeText((data.verdict||'').toUpperCase())}</strong><br>Estimated profit: $${Number(data.estimated_profit||0).toFixed(2)} · Effective rate: $${Number(data.effective_hourly||0).toFixed(2)}/hr<br>Suggested minimum: $${Number(data.suggested_minimum||0).toFixed(2)}${warnings?`<ul>${warnings}</ul>`:''}</div>`});
+document.getElementById('intake-form').addEventListener('submit',async event=>{event.preventDefault();const response=await fetch('/api/universal-intake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(formObject(event.target))});const data=await response.json();if(!response.ok)return statusMessage(data.error,true);const x=data.extracted;document.getElementById('intake-result').innerHTML=`<div class="advisor"><strong>${escapeText(x.title)}</strong><br>${escapeText(x.location||'No location detected')}<br>${x.job_pay?'$'+Number(x.job_pay).toFixed(2):'No pay detected'}</div>`;statusMessage('Work order extracted and saved.');setTimeout(()=>location.reload(),1100)});
+async function convertIntake(id){const response=await fetch(`/api/intake/${id}/convert`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const data=await response.json();if(!response.ok)return statusMessage(data.error,true);statusMessage(`Job ${data.job_id} created.`);setTimeout(()=>location.reload(),700)}
+async function convertEstimate(id){const response=await fetch(`/api/estimates/${id}/convert`,{method:'POST'});const data=await response.json();if(!response.ok)return statusMessage(data.error,true);statusMessage(`Estimate converted to job ${data.job_id}.`);setTimeout(()=>location.reload(),700)}
+async function runAgreements(){const response=await fetch('/api/service-agreements/run',{method:'POST'});const data=await response.json();statusMessage(response.ok?`${data.created_count} recurring job(s) created.`:(data.error||'Could not generate jobs.'),!response.ok);if(response.ok)setTimeout(()=>location.reload(),700)}
+async function editEconomics(id){const estimated_hours=prompt('Estimated/actual hours (leave blank to keep):')??'';const travel_miles=prompt('Round-trip miles (leave blank to keep):')??'';const materials_cost=prompt('Materials cost (leave blank to keep):')??'';const platform_fees=prompt('Platform fees (leave blank to keep):')??'';const other_costs=prompt('Other costs (leave blank to keep):')??'';const response=await fetch(`/api/jobs/${id}/economics`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estimated_hours,travel_miles,materials_cost,platform_fees,other_costs})});const data=await response.json();if(!response.ok)return statusMessage(data.error,true);statusMessage(`Profit updated: $${Number(data.metrics.profit).toFixed(2)}.`);setTimeout(()=>location.reload(),700)}
+async function assignContractor(id){const choices=JOB_CHOICES.map(job=>`${job.id}: ${job.title}`).join('\n');const job_id=prompt(`Enter a job ID:\n${choices}`);if(!job_id)return;const offered_pay=prompt('Offered contractor pay:')??'';const response=await fetch(`/api/contractors/${id}/assign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id,offered_pay})});const data=await response.json();if(!response.ok)return statusMessage(data.error||'Could not offer job.',true);statusMessage(data.email_sent?'Job assigned and offer emailed.':'Job assigned. Email was not sent.');}
+document.getElementById('callback-form').addEventListener('submit',async event=>{event.preventDefault();const data=formObject(event.target);const jobId=data.job_id;delete data.job_id;const response=await fetch(`/api/jobs/${jobId}/economics`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await response.json();if(!response.ok)return statusMessage(result.error,true);statusMessage('Callback linked to the original job.');setTimeout(()=>location.reload(),700)});
+function escapeText(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
+</script>
+{% include '_sync.html' %}{% include '_voice_fab.html' %}
+</body></html>

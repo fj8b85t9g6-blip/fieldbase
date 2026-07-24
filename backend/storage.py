@@ -16,6 +16,7 @@ _LOCAL_URLS = {
     'docs':     '/static/uploads/docs',
     'receipts': '/uploads/receipts',
     'signatures': '/static/uploads/signatures',
+    'compliance': '/static/uploads/compliance',
 }
 
 
@@ -33,6 +34,7 @@ def init(root: str):
         'docs':     os.path.join(root, 'frontend', 'static', 'uploads', 'docs'),
         'receipts': os.path.join(root, 'uploads', 'receipts'),
         'signatures': os.path.join(root, 'frontend', 'static', 'uploads', 'signatures'),
+        'compliance': os.path.join(root, 'frontend', 'static', 'uploads', 'compliance'),
     }
     if not USE_R2:
         for d in _LOCAL_DIRS.values():
@@ -82,3 +84,11 @@ def url(folder: str, filename: str, expires: int = 3600) -> str:
             ExpiresIn=expires,
         )
     return f'{_LOCAL_URLS[folder]}/{filename}'
+
+
+def read_bytes(folder: str, filename: str) -> bytes:
+    if USE_R2:
+        response = _s3().get_object(Bucket=_BUCKET, Key=f'{folder}/{filename}')
+        return response['Body'].read()
+    with open(os.path.join(_LOCAL_DIRS[folder], filename), 'rb') as handle:
+        return handle.read()

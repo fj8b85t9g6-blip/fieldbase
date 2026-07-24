@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, send_from_directory, session, abort
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, send_from_directory, send_file, session, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from datetime import datetime, timedelta
@@ -13,6 +13,9 @@ import json
 import hmac
 import secrets
 import html as html_lib
+import re
+import csv
+from io import StringIO
 import stripe
 try:
     from backend.marketing import GUIDES, SEGMENT_PAGES
@@ -20,6 +23,7 @@ except ImportError:
     from marketing import GUIDES, SEGMENT_PAGES
 try:
     from backend import storage   # Railway: gunicorn backend.app:app
+    from backend.proof_pdf import build_proof_package
     from backend.transcription import (
         MAX_AUDIO_BYTES,
         TranscriptionConfigurationError,
@@ -29,6 +33,7 @@ try:
     )
 except ImportError:
     import storage                # local: run from inside backend/
+    from proof_pdf import build_proof_package
     from transcription import (
         MAX_AUDIO_BYTES,
         TranscriptionConfigurationError,
@@ -157,6 +162,15 @@ class Job(db.Model):
     signature_filename = db.Column(db.String(300))
     signed_at         = db.Column(db.DateTime)
     signature_required = db.Column(db.Boolean, default=False)
+    original_scope     = db.Column(db.Text)
+    scope_locked_at    = db.Column(db.DateTime)
+    estimated_hours    = db.Column(db.Float)
+    travel_miles       = db.Column(db.Float, default=0)
+    materials_cost     = db.Column(db.Float, default=0)
+    platform_fees      = db.Column(db.Float, default=0)
+    other_costs        = db.Column(db.Float, default=0)
+    warranty_until     = db.Column(db.DateTime)
+    callback_job_id    = db.Column(db.Integer, db.ForeignKey('jobs.id'))
 
 
 class JobPhoto(db.Model):
@@ -191,6 +205,7 @@ class Client(db.Model):
     address       = db.Column(db.String(300))
     billing_terms = db.Column(db.String(100), default='Net 30')
     access_notes  = db.Column(db.Text)
+    portal_token  = db.Column(db.String(64), unique=True, index=True)
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     __table_args__ = (
@@ -257,6 +272,29 @@ class DispatchEvent(db.Model):
     recipient   = db.Column(db.String(200))
     status      = db.Column(db.String(30), default='sent')
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class BusinessRecord(db.Model):
+    """Flexible operational records for the contractor business layer."""
+    __tablename__ = 'business_records'
+    id           = db.Column(db.Integer, primary_key=True)
+    company_id   = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False, index=True)
+    job_id       = db.Column(db.Integer, db.ForeignKey('jobs.id'), index=True)
+    client_id    = db.Column(db.Integer, db.ForeignKey('clients.id'), index=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+    record_type  = db.Column(db.String(50), nullable=False, index=True)
+    status       = db.Column(db.String(30), nullable=False, default='draft', index=True)
+    title        = db.Column(db.String(240), nullable=False)
+    amount       = db.Column(db.Float, default=0)
+    data         = db.Column(db.Text, default='{}')
+    public_token = db.Column(db.String(64), unique=True, index=True)
+    due_at       = db.Column(db.DateTime)
+    approved_at  = db.Column(db.DateTime)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at   = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (
+        db.Index('ix_business_records_company_type', 'company_id', 'record_type'),
+    )
 
 
 class Conflict(db.Model):
@@ -966,6 +1004,48 @@ def _send_invoice_record(invoice, reminder=False):
     return sent
 
 
+def _prepare_review_request(invoice):
+    if not invoice.client_id:
+        return None
+    existing = BusinessRecord.query.filter_by(
+        company_id=invoice.company_id,
+        job_id=invoice.job_id,
+        client_id=invoice.client_id,
+        record_type='review_request',
+    ).first()
+    if existing:
+        return existing
+    job = db.session.get(Job, invoice.job_id) if invoice.job_id else None
+    record = BusinessRecord(
+        company_id=invoice.company_id,
+        job_id=invoice.job_id,
+        client_id=invoice.client_id,
+        record_type='review_request',
+        status='draft',
+        title=f'How did we do{f" on {job.title}" if job else ""}?',
+        data=json.dumps({
+            'invoice_id': invoice.id,
+            'referral_offer': 'Share this private page when someone asks who completed the work.',
+        }),
+        public_token=secrets.token_urlsafe(24),
+    )
+    db.session.add(record)
+    db.session.flush()
+    company = db.session.get(Company, invoice.company_id)
+    client = db.session.get(Client, invoice.client_id)
+    if company and company.client_notifications_enabled and client and client.email:
+        review_url = url_for('client_record', token=record.public_token, _external=True)
+        if send_email(
+            client.email,
+            f'How did we do? - {company.name}',
+            f'<p>Thank you for choosing {html_lib.escape(company.name)}.</p>'
+            f'<p><a href="{html_lib.escape(review_url)}">Share feedback or refer a friend</a></p>',
+        ):
+            record.status = 'sent'
+    db.session.commit()
+    return record
+
+
 @app.route('/invoice')
 @app.route('/invoices')
 @login_required
@@ -981,6 +1061,10 @@ def invoice():
     clients = Client.query.filter_by(
         company_id=current_user.company_id
     ).order_by(Client.name).all()
+    if any(not client.portal_token for client in clients):
+        for client in clients:
+            client.portal_token = client.portal_token or secrets.token_urlsafe(24)
+        db.session.commit()
     today = datetime.utcnow()
     for item in invoices:
         if item.status == 'sent' and item.due_date and item.due_date < today:
@@ -1110,6 +1194,8 @@ def mark_invoice_paid(invoice_id):
             job.payment_received = invoice.status == 'paid'
             job.amount_paid = invoice.amount_paid
     db.session.commit()
+    if invoice.status == 'paid':
+        _prepare_review_request(invoice)
     _record_marketing_event('first_payment_recorded', company_id=current_user.company_id, once=True)
     return jsonify({'success': True, 'status': invoice.status})
 
@@ -1150,6 +1236,7 @@ def clients():
             address=_bounded(request.form.get('address'), 300),
             billing_terms=_bounded(request.form.get('billing_terms'), 100) or 'Net 30',
             access_notes=_bounded(request.form.get('access_notes'), 2000),
+            portal_token=secrets.token_urlsafe(24),
         ))
         db.session.commit()
         flash('Client added.')
@@ -1157,6 +1244,13 @@ def clients():
     client_rows = Client.query.filter_by(
         company_id=current_user.company_id
     ).order_by(Client.name).all()
+    changed = False
+    for client in client_rows:
+        if not client.portal_token:
+            client.portal_token = secrets.token_urlsafe(24)
+            changed = True
+    if changed:
+        db.session.commit()
     job_counts = {
         client.id: Job.query.filter_by(
             company_id=current_user.company_id,
@@ -1241,6 +1335,928 @@ def job_template_api(template_id):
         'checklist': _json_list(template.checklist),
         'require_signature': template.require_signature,
     })
+
+
+# ─────────────────────────────────────────
+# CONTRACTOR BUSINESS OS
+# ─────────────────────────────────────────
+
+BUSINESS_RECORD_TYPES = {
+    'change_order', 'estimate', 'service_agreement', 'contractor',
+    'compliance', 'payout', 'review_request', 'intake', 'callback',
+}
+
+
+def _record_json(record):
+    try:
+        value = json.loads(record.data or '{}')
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _job_profitability(job):
+    scheduled_hours = max(
+        0.25,
+        ((job.end_time - job.start_time).total_seconds() / 3600) if job.end_time and job.start_time else 1,
+    )
+    if job.clock_in_at and job.clock_out_at:
+        hours = max(0.25, (job.clock_out_at - job.clock_in_at).total_seconds() / 3600)
+    else:
+        hours = max(0.25, float(job.estimated_hours or scheduled_hours))
+    revenue = float(job.job_pay or 0)
+    tech_pay = float(job.tech_pay or 0)
+    materials = float(job.materials_cost or 0)
+    platform_fees = float(job.platform_fees or 0)
+    mileage_cost = float(job.travel_miles or 0) * 0.67
+    other_costs = float(job.other_costs or 0) + mileage_cost
+    profit = revenue - tech_pay - materials - platform_fees - other_costs
+    return {
+        'hours': round(hours, 2),
+        'revenue': round(revenue, 2),
+        'tech_pay': round(tech_pay, 2),
+        'materials': round(materials, 2),
+        'platform_fees': round(platform_fees, 2),
+        'other_costs': round(other_costs, 2),
+        'profit': round(profit, 2),
+        'margin': round((profit / revenue * 100) if revenue else 0, 1),
+        'effective_hourly': round((profit / hours) if hours else 0, 2),
+    }
+
+
+def _profit_groups(rows, key_function):
+    grouped = {}
+    for job, metrics in rows:
+        key = key_function(job) or 'Unassigned'
+        item = grouped.setdefault(key, {'jobs': 0, 'revenue': 0, 'profit': 0, 'hours': 0})
+        item['jobs'] += 1
+        item['revenue'] += metrics['revenue']
+        item['profit'] += metrics['profit']
+        item['hours'] += metrics['hours']
+    return [
+        (
+            key,
+            {
+                **value,
+                'revenue': round(value['revenue'], 2),
+                'profit': round(value['profit'], 2),
+                'effective_hourly': round(value['profit'] / value['hours'], 2) if value['hours'] else 0,
+            },
+        )
+        for key, value in sorted(grouped.items(), key=lambda item: item[1]['profit'], reverse=True)
+    ]
+
+
+def _acceptance_advice(data):
+    revenue = max(0, _to_float(data.get('job_pay')) or 0)
+    hours = max(0.25, _to_float(data.get('estimated_hours')) or 1)
+    miles = max(0, _to_float(data.get('travel_miles')) or 0)
+    materials = max(0, _to_float(data.get('materials_cost')) or 0)
+    platform_fee_percent = max(0, min(_to_float(data.get('platform_fee_percent')) or 0, 100))
+    helper_pay = max(0, _to_float(data.get('helper_pay')) or 0)
+    costs = materials + helper_pay + (revenue * platform_fee_percent / 100) + (miles * 0.67)
+    profit = revenue - costs
+    hourly = profit / hours
+    warnings = []
+    if revenue <= 0:
+        warnings.append('The job has no confirmed pay.')
+    if hourly < 30:
+        warnings.append('Estimated earnings are below $30 per working hour.')
+    if miles > 80:
+        warnings.append('Travel is unusually high for a small field job.')
+    if not _bounded(data.get('scope'), 4000):
+        warnings.append('The scope is missing or too vague to price safely.')
+    if not _bounded(data.get('payment_terms'), 100):
+        warnings.append('Payment terms are not recorded.')
+    minimum = costs + (hours * 50)
+    verdict = 'strong' if hourly >= 60 and len(warnings) <= 1 else ('review' if hourly >= 30 else 'decline')
+    return {
+        'verdict': verdict,
+        'estimated_profit': round(profit, 2),
+        'effective_hourly': round(hourly, 2),
+        'suggested_minimum': round(minimum, 2),
+        'warnings': warnings,
+    }
+
+
+def _company_record(record_id, record_type=None):
+    query = BusinessRecord.query.filter_by(
+        id=record_id,
+        company_id=current_user.company_id,
+    )
+    if record_type:
+        query = query.filter_by(record_type=record_type)
+    return query.first_or_404()
+
+
+@app.route('/contractor-os')
+@login_required
+@owner_required
+def contractor_os():
+    records = BusinessRecord.query.filter_by(
+        company_id=current_user.company_id
+    ).order_by(BusinessRecord.created_at.desc()).all()
+    jobs = Job.query.filter_by(
+        company_id=current_user.company_id
+    ).order_by(Job.start_time.desc()).limit(100).all()
+    clients = Client.query.filter_by(
+        company_id=current_user.company_id
+    ).order_by(Client.name).all()
+    if any(not client.portal_token for client in clients):
+        for client in clients:
+            client.portal_token = client.portal_token or secrets.token_urlsafe(24)
+        db.session.commit()
+    team = User.query.filter_by(
+        company_id=current_user.company_id,
+        is_active=True,
+    ).order_by(User.name).all()
+    grouped = {record_type: [] for record_type in BUSINESS_RECORD_TYPES}
+    for record in records:
+        grouped.setdefault(record.record_type, []).append((record, _record_json(record)))
+    profit_rows = [(job, _job_profitability(job)) for job in jobs if job.job_pay is not None]
+    profit_groups = {
+        'platform': _profit_groups(profit_rows, lambda job: (job.platform or 'Manual').title()),
+        'technician': _profit_groups(profit_rows, lambda job: job.tech_assigned or 'Unassigned'),
+        'client': _profit_groups(profit_rows, lambda job: job.client_company or job.client_name or 'Unassigned'),
+    }
+    now = datetime.utcnow()
+    outstanding = InvoiceRecord.query.filter(
+        InvoiceRecord.company_id == current_user.company_id,
+        InvoiceRecord.status.notin_(('paid', 'void')),
+    ).all()
+    dispatch_events = DispatchEvent.query.filter_by(
+        company_id=current_user.company_id
+    ).order_by(DispatchEvent.created_at.desc()).limit(15).all()
+    attention = {
+        'unpaid_total': sum(max(0, item.total - (item.amount_paid or 0)) for item in outstanding),
+        'pending_changes': sum(1 for record in records if record.record_type == 'change_order' and record.status == 'pending'),
+        'compliance_due': sum(
+            1 for record in records
+            if record.record_type == 'compliance'
+            and record.status == 'active'
+            and record.due_at
+            and record.due_at <= now + timedelta(days=30)
+        ),
+        'low_profit': sum(1 for _, metrics in profit_rows if metrics['profit'] < 0 or metrics['effective_hourly'] < 30),
+        'agreements_due': sum(
+            1 for record in records
+            if record.record_type == 'service_agreement'
+            and record.status == 'active'
+            and record.due_at
+            and record.due_at <= now + timedelta(days=7)
+        ),
+    }
+    return render_template(
+        'contractor_os.html',
+        records=grouped,
+        jobs=jobs,
+        clients=clients,
+        team=team,
+        profit_rows=profit_rows,
+        profit_groups=profit_groups,
+        attention=attention,
+        dispatch_events=dispatch_events,
+        record_json=_record_json,
+    )
+
+
+@app.route('/api/contractor-os/records', methods=['POST'])
+@login_required
+@owner_required
+def create_business_record():
+    data = request.get_json(silent=True) or request.form.to_dict()
+    record_type = _bounded(data.get('record_type'), 50)
+    if record_type not in BUSINESS_RECORD_TYPES:
+        return jsonify({'error': 'Unsupported business record type.'}), 400
+    title = _bounded(data.get('title'), 240)
+    if not title:
+        return jsonify({'error': 'A title is required.'}), 400
+    job = None
+    client = None
+    user = None
+    if data.get('job_id'):
+        job = Job.query.filter_by(
+            id=_to_int(data.get('job_id')),
+            company_id=current_user.company_id,
+        ).first_or_404()
+    if data.get('client_id'):
+        client = Client.query.filter_by(
+            id=_to_int(data.get('client_id')),
+            company_id=current_user.company_id,
+        ).first_or_404()
+    if data.get('user_id'):
+        user = User.query.filter_by(
+            id=_to_int(data.get('user_id')),
+            company_id=current_user.company_id,
+        ).first_or_404()
+    if record_type == 'change_order' and not job:
+        return jsonify({'error': 'Choose a job for the change order.'}), 400
+    if record_type in ('estimate', 'service_agreement', 'review_request') and not client:
+        return jsonify({'error': 'Choose a client.'}), 400
+    if record_type == 'payout' and not (user or data.get('contractor_name')):
+        return jsonify({'error': 'Choose or name the contractor being paid.'}), 400
+    review_url = _bounded(data.get('review_url'), 500)
+    if record_type == 'review_request' and review_url and not review_url.startswith(('https://', 'http://')):
+        return jsonify({'error': 'Review links must start with https:// or http://.'}), 400
+
+    reserved = {
+        'record_type', 'title', 'status', 'amount', 'job_id', 'client_id',
+        'user_id', 'due_at',
+    }
+    details = {}
+    for key, value in data.items():
+        if key in reserved:
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            details[str(key)[:80]] = str(value)[:5000] if isinstance(value, str) else value
+    due_at = _parse_dt(data.get('due_at'))
+    status_defaults = {
+        'change_order': 'pending',
+        'estimate': 'draft',
+        'service_agreement': 'active',
+        'contractor': 'active',
+        'compliance': 'active',
+        'payout': 'pending',
+        'review_request': 'draft',
+        'intake': 'new',
+        'callback': 'open',
+    }
+    record = BusinessRecord(
+        company_id=current_user.company_id,
+        job_id=job.id if job else None,
+        client_id=client.id if client else None,
+        user_id=user.id if user else None,
+        record_type=record_type,
+        status=status_defaults[record_type],
+        title=title,
+        amount=max(0, _to_float(data.get('amount')) or 0),
+        data=json.dumps(details),
+        public_token=secrets.token_urlsafe(24) if record_type in ('change_order', 'estimate', 'review_request') else None,
+        due_at=due_at,
+    )
+    if record_type == 'change_order' and job and not job.scope_locked_at:
+        job.original_scope = job.notes or ''
+        job.scope_locked_at = datetime.utcnow()
+    db.session.add(record)
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'id': record.id,
+        'status': record.status,
+        'public_url': (
+            url_for('client_record', token=record.public_token, _external=True)
+            if record.public_token else None
+        ),
+    })
+
+
+@app.route('/api/contractor-os/compliance', methods=['POST'])
+@login_required
+@owner_required
+def upload_compliance_record():
+    upload = request.files.get('document')
+    title = _bounded(request.form.get('title'), 240)
+    if not upload or not title:
+        return jsonify({'error': 'Document and title are required.'}), 400
+    content = upload.read(10_000_001)
+    if len(content) > 10_000_000:
+        return jsonify({'error': 'Compliance documents must be 10 MB or smaller.'}), 413
+    upload.seek(0)
+    extension = os.path.splitext(upload.filename or '')[1].lower()
+    if extension not in ('.pdf', '.png', '.jpg', '.jpeg'):
+        return jsonify({'error': 'Upload a PDF, PNG, or JPG document.'}), 400
+    signatures = {
+        '.pdf': content.startswith(b'%PDF'),
+        '.png': content.startswith(b'\x89PNG\r\n\x1a\n'),
+        '.jpg': content.startswith(b'\xff\xd8\xff'),
+        '.jpeg': content.startswith(b'\xff\xd8\xff'),
+    }
+    if not signatures[extension]:
+        return jsonify({'error': 'The file content does not match its extension.'}), 400
+    filename = f'{uuid.uuid4().hex}{extension}'
+    storage.upload(upload, 'compliance', filename)
+    user_id = _to_int(request.form.get('user_id'))
+    if user_id:
+        User.query.filter_by(id=user_id, company_id=current_user.company_id).first_or_404()
+    record = BusinessRecord(
+        company_id=current_user.company_id,
+        user_id=user_id,
+        record_type='compliance',
+        status='active',
+        title=title,
+        data=json.dumps({
+            'document_type': _bounded(request.form.get('document_type'), 100),
+            'filename': filename,
+            'original_name': _bounded(upload.filename, 300),
+        }),
+        due_at=_parse_dt(request.form.get('due_at')),
+    )
+    db.session.add(record)
+    db.session.commit()
+    return jsonify({'success': True, 'id': record.id})
+
+
+@app.route('/api/contractor-os/compliance/<int:record_id>/document')
+@login_required
+@owner_required
+def compliance_document(record_id):
+    record = _company_record(record_id, 'compliance')
+    filename = _record_json(record).get('filename')
+    if not filename:
+        abort(404)
+    return redirect(storage.url('compliance', filename))
+
+
+@app.route('/api/contractor-os/payouts.csv')
+@login_required
+@owner_required
+def payout_export():
+    records = BusinessRecord.query.filter(
+        BusinessRecord.company_id == current_user.company_id,
+        BusinessRecord.record_type == 'payout',
+        BusinessRecord.status.in_(('approved', 'complete', 'paid')),
+    ).order_by(BusinessRecord.created_at).all()
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Date', 'Contractor', 'Description', 'Amount', 'Status', 'Job ID'])
+    for record in records:
+        details = _record_json(record)
+        user = db.session.get(User, record.user_id) if record.user_id else None
+        writer.writerow([
+            record.created_at.date().isoformat(),
+            user.name if user else details.get('contractor_name', ''),
+            record.title,
+            f'{float(record.amount or 0):.2f}',
+            record.status,
+            record.job_id or '',
+        ])
+    return app.response_class(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=fieldbase-payouts-{datetime.utcnow().year}.csv'},
+    )
+
+
+@app.route('/api/contractor-os/records/<int:record_id>/<action>', methods=['POST'])
+@login_required
+@owner_required
+def update_business_record(record_id, action):
+    record = _company_record(record_id)
+    if action not in ('approve', 'reject', 'complete', 'archive', 'send'):
+        return jsonify({'error': 'Unsupported action.'}), 400
+    if action == 'approve':
+        record.status = 'approved'
+        record.approved_at = record.approved_at or datetime.utcnow()
+    elif action == 'reject':
+        record.status = 'rejected'
+    elif action == 'complete':
+        record.status = 'complete'
+    elif action == 'archive':
+        record.status = 'archived'
+    elif action == 'send':
+        if record.record_type not in ('estimate', 'change_order', 'review_request'):
+            return jsonify({'error': 'This record cannot be sent to a client.'}), 400
+        client = db.session.get(Client, record.client_id) if record.client_id else None
+        job = db.session.get(Job, record.job_id) if record.job_id else None
+        recipient = client.email if client else (job.client_email if job else None)
+        if not recipient:
+            return jsonify({'error': 'Add a client email before sending.'}), 400
+        public_url = url_for('client_record', token=record.public_token, _external=True)
+        sent = send_email(
+            recipient,
+            f'{record.title} - {current_user.company.name}',
+            f'<p>{html_lib.escape(record.title)}</p><p><a href="{html_lib.escape(public_url)}">Review securely in FieldBase</a></p>',
+        )
+        if not sent:
+            return jsonify({'error': 'Email is not configured or delivery failed.'}), 503
+        record.status = 'sent'
+    db.session.commit()
+    return jsonify({'success': True, 'status': record.status})
+
+
+@app.route('/api/contractors/<int:record_id>/assign', methods=['POST'])
+@login_required
+@owner_required
+def assign_contractor(record_id):
+    contractor = _company_record(record_id, 'contractor')
+    data = request.get_json(silent=True) or {}
+    job = Job.query.filter_by(
+        id=_to_int(data.get('job_id')),
+        company_id=current_user.company_id,
+    ).first_or_404()
+    details = _record_json(contractor)
+    job.tech_assigned = contractor.title
+    offered_pay = _to_float(data.get('offered_pay'))
+    if offered_pay is not None:
+        job.tech_pay = max(0, offered_pay)
+    job.tech_confirmed = False
+    details['last_offered_job_id'] = job.id
+    details['last_offered_at'] = datetime.utcnow().isoformat()
+    contractor.data = json.dumps(details)
+    email = _bounded(details.get('email'), 200)
+    sent = False
+    if email:
+        sent = send_email(
+            email,
+            f'Job offer: {job.title}',
+            f'<p><strong>{html_lib.escape(job.title)}</strong></p>'
+            f'<p>{job.start_time.strftime("%b %d, %Y at %I:%M %p")}<br>{html_lib.escape(job.location or "Location pending")}</p>'
+            f'<p>Offered pay: ${float(job.tech_pay or 0):,.2f}</p>',
+        )
+    db.session.commit()
+    return jsonify({'success': True, 'email_sent': sent, 'job_id': job.id})
+
+
+@app.route('/api/jobs/<int:job_id>/scope-lock', methods=['POST'])
+@login_required
+@owner_required
+def lock_job_scope(job_id):
+    job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    data = request.get_json(silent=True) or {}
+    scope = _bounded(data.get('scope'), 12000) or job.notes
+    if not scope:
+        return jsonify({'error': 'Add the agreed scope before locking it.'}), 400
+    if job.scope_locked_at and not data.get('confirm_replace'):
+        return jsonify({'error': 'Scope is already locked. Confirm replacement explicitly.'}), 409
+    job.original_scope = scope
+    job.scope_locked_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'success': True, 'locked_at': job.scope_locked_at.isoformat()})
+
+
+@app.route('/api/jobs/<int:job_id>/economics', methods=['POST'])
+@login_required
+@owner_required
+def update_job_economics(job_id):
+    job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    data = request.get_json(silent=True) or {}
+    for field in ('estimated_hours', 'travel_miles', 'materials_cost', 'platform_fees', 'other_costs'):
+        value = _to_float(data.get(field))
+        if value is not None:
+            setattr(job, field, max(0, value))
+    warranty_until = _parse_dt(data.get('warranty_until'))
+    if data.get('warranty_until') is not None:
+        job.warranty_until = warranty_until
+    callback_job_id = _to_int(data.get('callback_job_id'))
+    if callback_job_id:
+        original = Job.query.filter_by(
+            id=callback_job_id,
+            company_id=current_user.company_id,
+        ).first_or_404()
+        if original.id == job.id:
+            return jsonify({'error': 'A job cannot be its own callback.'}), 400
+        job.callback_job_id = original.id
+    db.session.commit()
+    return jsonify({'success': True, 'metrics': _job_profitability(job)})
+
+
+@app.route('/api/jobs/<int:job_id>/proof-package.pdf')
+@login_required
+def job_proof_package(job_id):
+    if current_user.role == 'owner':
+        job = Job.query.filter_by(id=job_id, company_id=current_user.company_id).first_or_404()
+    else:
+        job = _employee_job(job_id)
+    changes = BusinessRecord.query.filter_by(
+        company_id=job.company_id,
+        job_id=job.id,
+        record_type='change_order',
+    ).order_by(BusinessRecord.created_at).all()
+    photos = JobPhoto.query.filter_by(company_id=job.company_id, job_id=job.id).order_by(JobPhoto.uploaded_at).all()
+    documents = JobDocument.query.filter_by(company_id=job.company_id, job_id=job.id).order_by(JobDocument.uploaded_at).all()
+    photo_assets = []
+    for photo in photos:
+        try:
+            photo_assets.append((photo, storage.read_bytes('photos', photo.filename)))
+        except Exception as exc:
+            app.logger.warning('Could not include photo %s in proof package: %s', photo.id, exc)
+    signature_bytes = None
+    if job.signature_filename:
+        try:
+            signature_bytes = storage.read_bytes('signatures', job.signature_filename)
+        except Exception as exc:
+            app.logger.warning('Could not include signature for job %s: %s', job.id, exc)
+    pdf = build_proof_package(
+        db.session.get(Company, job.company_id),
+        job,
+        [(change, _record_json(change)) for change in changes],
+        photos,
+        documents,
+        _json_list(job.closeout_checklist),
+        _job_profitability(job),
+        photo_assets=photo_assets,
+        signature_bytes=signature_bytes,
+    )
+    safe_title = re.sub(r'[^A-Za-z0-9_-]+', '-', job.title).strip('-')[:60] or f'job-{job.id}'
+    return send_file(
+        pdf,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'{safe_title}-proof-package.pdf',
+    )
+
+
+@app.route('/api/job-acceptance-advisor', methods=['POST'])
+@login_required
+@owner_required
+def job_acceptance_advisor():
+    return jsonify(_acceptance_advice(request.get_json(silent=True) or {}))
+
+
+@app.route('/api/universal-intake', methods=['POST'])
+@login_required
+@owner_required
+def universal_intake():
+    data = request.get_json(silent=True) or {}
+    raw = _bounded(data.get('text'), 12000)
+    if not raw:
+        return jsonify({'error': 'Paste or dictate the work order first.'}), 400
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    amount_match = re.search(r'(?:pay|total|amount|rate)?\s*\$([0-9][0-9,]*(?:\.[0-9]{1,2})?)', raw, re.I)
+    email_match = re.search(r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', raw)
+    address_match = re.search(
+        r'(?im)^([0-9]{1,6}\s+.+?\b(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way)\b.*)$',
+        raw,
+    )
+    date_match = re.search(r'(?i)\b(20\d{2}-\d{1,2}-\d{1,2}(?:[ T]\d{1,2}:\d{2})?)\b', raw)
+    extracted = {
+        'title': lines[0][:200] if lines else 'Imported work order',
+        'job_pay': float(amount_match.group(1).replace(',', '')) if amount_match else None,
+        'client_email': email_match.group(0) if email_match else None,
+        'location': address_match.group(1)[:300] if address_match else None,
+        'start': date_match.group(1) if date_match else None,
+        'scope': raw,
+    }
+    record = BusinessRecord(
+        company_id=current_user.company_id,
+        record_type='intake',
+        status='new',
+        title=extracted['title'],
+        amount=extracted['job_pay'] or 0,
+        data=json.dumps(extracted),
+    )
+    db.session.add(record)
+    db.session.commit()
+    return jsonify({'success': True, 'id': record.id, 'extracted': extracted})
+
+
+@app.route('/api/intake/<int:record_id>/convert', methods=['POST'])
+@login_required
+@owner_required
+def convert_intake(record_id):
+    record = _company_record(record_id, 'intake')
+    details = _record_json(record)
+    data = request.get_json(silent=True) or {}
+    start = _parse_dt(data.get('start') or details.get('start')) or (datetime.utcnow() + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+    duration = max(15, min(_to_int(data.get('duration_minutes'), 120), 1440))
+    job = Job(
+        company_id=current_user.company_id,
+        title=_bounded(data.get('title'), 200) or _bounded(details.get('title'), 200) or record.title,
+        platform=_bounded(data.get('platform'), 50) or 'direct',
+        location=_bounded(data.get('location'), 300) or _bounded(details.get('location'), 300),
+        start_time=start,
+        end_time=start + timedelta(minutes=duration),
+        status='scheduled',
+        job_pay=_to_float(data.get('job_pay')) or record.amount,
+        client_email=_bounded(data.get('client_email'), 200) or _bounded(details.get('client_email'), 200),
+        notes=_bounded(data.get('scope'), 12000) or _bounded(details.get('scope'), 12000),
+        original_scope=_bounded(data.get('scope'), 12000) or _bounded(details.get('scope'), 12000),
+        scope_locked_at=datetime.utcnow(),
+    )
+    db.session.add(job)
+    db.session.flush()
+    record.job_id = job.id
+    record.status = 'converted'
+    db.session.commit()
+    return jsonify({'success': True, 'job_id': job.id})
+
+
+@app.route('/portal/<token>')
+def client_portal(token):
+    client = Client.query.filter_by(portal_token=token).first_or_404()
+    company = db.session.get(Company, client.company_id)
+    jobs = Job.query.filter_by(company_id=client.company_id, client_id=client.id).order_by(Job.start_time.desc()).all()
+    invoices = InvoiceRecord.query.filter_by(company_id=client.company_id, client_id=client.id).order_by(InvoiceRecord.created_at.desc()).all()
+    viewed_changed = False
+    for invoice in invoices:
+        if invoice.sent_at and not invoice.viewed_at:
+            invoice.viewed_at = datetime.utcnow()
+            viewed_changed = True
+    if viewed_changed:
+        db.session.commit()
+    records = BusinessRecord.query.filter_by(company_id=client.company_id, client_id=client.id).filter(
+        BusinessRecord.record_type.in_(('estimate', 'service_agreement', 'review_request'))
+    ).order_by(BusinessRecord.created_at.desc()).all()
+    job_ids = [job.id for job in jobs]
+    changes = BusinessRecord.query.filter(
+        BusinessRecord.company_id == client.company_id,
+        BusinessRecord.record_type == 'change_order',
+        BusinessRecord.job_id.in_(job_ids or [-1]),
+    ).order_by(BusinessRecord.created_at.desc()).all()
+    return render_template(
+        'client_portal.html',
+        client=client,
+        company=company,
+        jobs=jobs,
+        invoices=invoices,
+        records=[(record, _record_json(record)) for record in records],
+        changes=[(record, _record_json(record)) for record in changes],
+    )
+
+
+@app.route('/portal/<token>/request', methods=['POST'])
+def client_portal_request(token):
+    client = Client.query.filter_by(portal_token=token).first_or_404()
+    title = _bounded(request.form.get('title'), 240)
+    details = _bounded(request.form.get('details'), 5000)
+    if not title or not details:
+        return redirect(url_for('client_portal', token=token, request_error='1'))
+    record = BusinessRecord(
+        company_id=client.company_id,
+        client_id=client.id,
+        record_type='intake',
+        status='new',
+        title=title,
+        data=json.dumps({
+            'scope': details,
+            'preferred_date': _bounded(request.form.get('preferred_date'), 50),
+            'source': 'client_portal',
+        }),
+    )
+    db.session.add(record)
+    db.session.commit()
+    return redirect(url_for('client_portal', token=token, requested='1'))
+
+
+@app.route('/portal/record/<token>')
+def client_record(token):
+    record = BusinessRecord.query.filter_by(public_token=token).first_or_404()
+    if record.status == 'sent':
+        record.status = 'viewed'
+        db.session.commit()
+    company = db.session.get(Company, record.company_id)
+    client = db.session.get(Client, record.client_id) if record.client_id else None
+    job = db.session.get(Job, record.job_id) if record.job_id else None
+    return render_template(
+        'client_record.html',
+        record=record,
+        details=_record_json(record),
+        company=company,
+        client=client,
+        job=job,
+    )
+
+
+@app.route('/portal/record/<token>/approve', methods=['POST'])
+def approve_client_record(token):
+    record = BusinessRecord.query.filter_by(public_token=token).first_or_404()
+    if record.record_type not in ('estimate', 'change_order'):
+        abort(400)
+    if not record.approved_at:
+        record.status = 'approved'
+        record.approved_at = datetime.utcnow()
+        if record.record_type == 'change_order' and record.job_id:
+            job = db.session.get(Job, record.job_id)
+            if job:
+                job.job_pay = float(job.job_pay or 0) + float(record.amount or 0)
+    db.session.commit()
+    return redirect(url_for('client_record', token=token, approved='1'))
+
+
+@app.route('/portal/record/<token>/decline', methods=['POST'])
+def decline_client_record(token):
+    record = BusinessRecord.query.filter_by(public_token=token).first_or_404()
+    if record.record_type not in ('estimate', 'change_order'):
+        abort(400)
+    if not record.approved_at:
+        record.status = 'declined'
+        db.session.commit()
+    return redirect(url_for('client_record', token=token))
+
+
+@app.route('/portal/record/<token>/referral', methods=['POST'])
+def submit_referral(token):
+    source = BusinessRecord.query.filter_by(
+        public_token=token,
+        record_type='review_request',
+    ).first_or_404()
+    name = _bounded(request.form.get('name'), 200)
+    email = _bounded(request.form.get('email'), 200)
+    details = _bounded(request.form.get('details'), 2000)
+    if not name or not email:
+        return redirect(url_for('client_record', token=token, referral_error='1'))
+    referral = BusinessRecord(
+        company_id=source.company_id,
+        client_id=source.client_id,
+        record_type='intake',
+        status='new',
+        title=f'Referral: {name}',
+        data=json.dumps({
+            'referred_name': name,
+            'client_email': email,
+            'scope': details,
+            'source': 'client_referral',
+            'review_request_id': source.id,
+        }),
+    )
+    db.session.add(referral)
+    db.session.commit()
+    return redirect(url_for('client_record', token=token, referred='1'))
+
+
+@app.route('/portal/record/<token>/deposit', methods=['POST'])
+def client_record_deposit(token):
+    record = BusinessRecord.query.filter_by(public_token=token, record_type='estimate').first_or_404()
+    if record.status not in ('approved', 'deposit_due'):
+        return jsonify({'error': 'Approve the estimate before paying the deposit.'}), 400
+    details = _record_json(record)
+    deposit_percent = max(0, min(_to_float(details.get('deposit_percent')) or 0, 100))
+    amount = round(float(record.amount or 0) * deposit_percent / 100, 2)
+    if amount <= 0:
+        return jsonify({'error': 'This estimate does not require a deposit.'}), 400
+    company = db.session.get(Company, record.company_id)
+    client = db.session.get(Client, record.client_id) if record.client_id else None
+    request_options = {}
+    if company and company.connect_charges_enabled and company.stripe_connect_id:
+        request_options['stripe_account'] = company.stripe_connect_id
+    checkout = stripe.checkout.Session.create(
+        mode='payment',
+        line_items=[{
+            'price_data': {
+                'currency': 'usd',
+                'product_data': {'name': f'Deposit - {record.title}'},
+                'unit_amount': int(round(amount * 100)),
+            },
+            'quantity': 1,
+        }],
+        customer_email=client.email if client else None,
+        metadata={
+            'business_record_id': str(record.id),
+            'payment_kind': 'estimate_deposit',
+            'company_id': str(record.company_id),
+        },
+        success_url=url_for('client_record', token=token, deposit='success', _external=True),
+        cancel_url=url_for('client_record', token=token, deposit='canceled', _external=True),
+        **request_options,
+    )
+    details['deposit_checkout_session_id'] = checkout.id
+    details['deposit_checkout_url'] = checkout.url
+    details['deposit_amount'] = amount
+    record.data = json.dumps(details)
+    record.status = 'deposit_due'
+    db.session.commit()
+    return redirect(checkout.url, code=303)
+
+
+@app.route('/api/estimates/<int:record_id>/convert', methods=['POST'])
+@login_required
+@owner_required
+def convert_estimate(record_id):
+    record = _company_record(record_id, 'estimate')
+    if record.status not in ('approved', 'deposit_paid'):
+        return jsonify({'error': 'The client must approve the estimate first.'}), 400
+    details = _record_json(record)
+    deposit_percent = max(0, min(_to_float(details.get('deposit_percent')) or 0, 100))
+    if deposit_percent > 0 and record.status != 'deposit_paid':
+        return jsonify({'error': 'The required deposit must be confirmed before scheduling.'}), 400
+    client = db.session.get(Client, record.client_id)
+    start = _parse_dt(details.get('start')) or (datetime.utcnow() + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+    duration = max(15, min(_to_int(details.get('duration_minutes'), 120), 1440))
+    job = Job(
+        company_id=current_user.company_id,
+        client_id=client.id if client else None,
+        title=record.title,
+        platform='direct',
+        location=client.address if client else None,
+        start_time=start,
+        end_time=start + timedelta(minutes=duration),
+        status='scheduled',
+        job_pay=record.amount,
+        client_name=client.name if client else None,
+        client_company=client.company_name if client else None,
+        client_email=client.email if client else None,
+        notes=_bounded(details.get('scope'), 12000),
+        original_scope=_bounded(details.get('scope'), 12000),
+        scope_locked_at=datetime.utcnow(),
+        estimated_hours=duration / 60,
+    )
+    db.session.add(job)
+    db.session.flush()
+    record.job_id = job.id
+    record.status = 'converted'
+    db.session.commit()
+    return jsonify({'success': True, 'job_id': job.id})
+
+
+def _generate_due_service_jobs(company_id=None, through=None):
+    now = datetime.utcnow()
+    through = through or now
+    query = BusinessRecord.query.filter(
+        BusinessRecord.record_type == 'service_agreement',
+        BusinessRecord.status == 'active',
+        BusinessRecord.due_at.isnot(None),
+        BusinessRecord.due_at <= through,
+    )
+    if company_id is not None:
+        query = query.filter(BusinessRecord.company_id == company_id)
+    agreements = query.all()
+    created = []
+    for agreement in agreements:
+        details = _record_json(agreement)
+        client = db.session.get(Client, agreement.client_id)
+        start = agreement.due_at.replace(hour=9, minute=0, second=0, microsecond=0)
+        duration = max(15, min(_to_int(details.get('duration_minutes'), 120), 1440))
+        job = Job(
+            company_id=agreement.company_id,
+            client_id=client.id if client else None,
+            title=agreement.title,
+            platform='recurring',
+            location=client.address if client else None,
+            start_time=start,
+            end_time=start + timedelta(minutes=duration),
+            status='scheduled',
+            job_pay=agreement.amount,
+            client_name=client.name if client else None,
+            client_company=client.company_name if client else None,
+            client_email=client.email if client else None,
+            notes=_bounded(details.get('scope'), 12000),
+            original_scope=_bounded(details.get('scope'), 12000),
+            scope_locked_at=datetime.utcnow(),
+            estimated_hours=duration / 60,
+        )
+        db.session.add(job)
+        db.session.flush()
+        created.append(job.id)
+        cadence = details.get('cadence', 'monthly')
+        agreement.due_at = (
+            agreement.due_at + relativedelta(months=3)
+            if cadence == 'quarterly'
+            else agreement.due_at + relativedelta(months=1)
+        )
+    db.session.commit()
+    return created
+
+
+@app.route('/api/service-agreements/run', methods=['POST'])
+@login_required
+@owner_required
+def run_service_agreements():
+    created = _generate_due_service_jobs(current_user.company_id)
+    return jsonify({'success': True, 'created_count': len(created), 'job_ids': created})
+
+
+@app.route('/api/contractor-assistant', methods=['POST'])
+@login_required
+@owner_required
+def contractor_assistant():
+    data = request.get_json(silent=True) or {}
+    question = (_bounded(data.get('question'), 500) or '').lower()
+    if not question:
+        return jsonify({'error': 'Ask FieldBase a business question.'}), 400
+    if any(word in question for word in ('create', 'generate', 'schedule')) and any(word in question for word in ('agreement', 'recurring', 'renew')):
+        created = _generate_due_service_jobs(current_user.company_id, datetime.utcnow() + timedelta(days=7))
+        answer = f'{len(created)} recurring job(s) due within seven days were created.'
+        items = [f'Created job {job_id}' for job_id in created]
+    elif any(word in question for word in ('unpaid', 'invoice', 'owe')):
+        invoices = InvoiceRecord.query.filter(
+            InvoiceRecord.company_id == current_user.company_id,
+            InvoiceRecord.status.notin_(('paid', 'void')),
+        ).order_by(InvoiceRecord.due_date).all()
+        total = sum(max(0, invoice.total - (invoice.amount_paid or 0)) for invoice in invoices)
+        answer = f'{len(invoices)} invoice(s) are open for ${total:,.2f}.'
+        items = [f'{invoice.number}: ${max(0, invoice.total - (invoice.amount_paid or 0)):,.2f}' for invoice in invoices[:8]]
+    elif any(word in question for word in ('profit', 'worth', 'under')):
+        jobs = Job.query.filter(
+            Job.company_id == current_user.company_id,
+            Job.job_pay.isnot(None),
+        ).order_by(Job.start_time.desc()).limit(100).all()
+        low = [(job, _job_profitability(job)) for job in jobs]
+        low = [(job, metrics) for job, metrics in low if metrics['effective_hourly'] < 30 or metrics['profit'] < 0]
+        answer = f'{len(low)} recent job(s) need a profitability review.'
+        items = [f'{job.title}: ${metrics["profit"]:,.2f} profit, ${metrics["effective_hourly"]:,.2f}/hr' for job, metrics in low[:8]]
+    elif any(word in question for word in ('today', 'attention', 'urgent')):
+        pending_changes = BusinessRecord.query.filter_by(
+            company_id=current_user.company_id,
+            record_type='change_order',
+            status='pending',
+        ).count()
+        reviews = Job.query.filter_by(company_id=current_user.company_id, status='awaiting_review').count()
+        overdue = InvoiceRecord.query.filter_by(company_id=current_user.company_id, status='overdue').count()
+        answer = f'{pending_changes} change order(s), {reviews} completed job(s), and {overdue} overdue invoice(s) need attention.'
+        items = []
+    elif any(word in question for word in ('agreement', 'recurring', 'renew')):
+        due = BusinessRecord.query.filter(
+            BusinessRecord.company_id == current_user.company_id,
+            BusinessRecord.record_type == 'service_agreement',
+            BusinessRecord.status == 'active',
+            BusinessRecord.due_at <= datetime.utcnow() + timedelta(days=30),
+        ).order_by(BusinessRecord.due_at).all()
+        answer = f'{len(due)} service agreement(s) are due within 30 days.'
+        items = [f'{record.title}: {record.due_at.strftime("%b %d")}' for record in due[:8]]
+    else:
+        answer = 'Try asking about unpaid invoices, jobs under $30/hour, what needs attention today, or recurring agreements.'
+        items = []
+    return jsonify({'success': True, 'answer': answer, 'items': items})
 
 # ─────────────────────────────────────────
 # EMPLOYEE ROUTES
@@ -2115,6 +3131,7 @@ def _run_lifecycle_emails():
     sent = 0
     skipped = 0
     reminder_result = _run_invoice_reminders(now)
+    recurring_jobs = _generate_due_service_jobs()
     companies = Company.query.filter_by(subscription_status='trialing').all()
     for company in companies:
         owner = User.query.filter_by(
@@ -2188,6 +3205,7 @@ def _run_lifecycle_emails():
         'skipped': skipped,
         'invoice_reminders_sent': reminder_result['sent'],
         'invoice_reminders_skipped': reminder_result['skipped'],
+        'recurring_jobs_created': len(recurring_jobs),
     }
 
 
@@ -3191,9 +4209,23 @@ def stripe_webhook():
             db.session.commit()
     elif event['type'] == 'checkout.session.completed':
         metadata = obj.get('metadata', {})
+        business_record_id = metadata.get('business_record_id')
         invoice_id = metadata.get('invoice_id')
         job_id = metadata.get('job_id')
         amount_paid = (obj.get('amount_total') or 0) / 100
+        business_record = (
+            db.session.get(BusinessRecord, int(business_record_id))
+            if business_record_id else None
+        )
+        if business_record and metadata.get('payment_kind') == 'estimate_deposit':
+            details = _record_json(business_record)
+            details['deposit_paid'] = amount_paid
+            details['deposit_paid_at'] = datetime.utcnow().isoformat()
+            details['deposit_checkout_session_id'] = obj.get('id')
+            business_record.data = json.dumps(details)
+            business_record.status = 'deposit_paid'
+            db.session.commit()
+            return jsonify({'status': 'ok'})
         invoice = db.session.get(InvoiceRecord, int(invoice_id)) if invoice_id else None
         if invoice and invoice.status != 'paid':
             invoice.status = 'paid'
@@ -3206,6 +4238,7 @@ def stripe_webhook():
                     job.payment_received = True
                     job.amount_paid = amount_paid
             db.session.commit()
+            _prepare_review_request(invoice)
             _record_marketing_event(
                 'first_payment_recorded',
                 company_id=invoice.company_id,
@@ -3265,6 +4298,17 @@ with app.app_context():
             ('signature_filename', 'ALTER TABLE jobs ADD COLUMN signature_filename VARCHAR(300)'),
             ('signed_at',        'ALTER TABLE jobs ADD COLUMN signed_at TIMESTAMP'),
             ('signature_required', 'ALTER TABLE jobs ADD COLUMN signature_required BOOLEAN DEFAULT FALSE'),
+            ('original_scope',   'ALTER TABLE jobs ADD COLUMN original_scope TEXT'),
+            ('scope_locked_at',  'ALTER TABLE jobs ADD COLUMN scope_locked_at TIMESTAMP'),
+            ('estimated_hours',  'ALTER TABLE jobs ADD COLUMN estimated_hours FLOAT'),
+            ('travel_miles',     'ALTER TABLE jobs ADD COLUMN travel_miles FLOAT DEFAULT 0'),
+            ('materials_cost',   'ALTER TABLE jobs ADD COLUMN materials_cost FLOAT DEFAULT 0'),
+            ('platform_fees',    'ALTER TABLE jobs ADD COLUMN platform_fees FLOAT DEFAULT 0'),
+            ('other_costs',      'ALTER TABLE jobs ADD COLUMN other_costs FLOAT DEFAULT 0'),
+            ('warranty_until',   'ALTER TABLE jobs ADD COLUMN warranty_until TIMESTAMP'),
+            ('callback_job_id',  'ALTER TABLE jobs ADD COLUMN callback_job_id INTEGER REFERENCES jobs(id)'),
+            ('portal_token',     'ALTER TABLE clients ADD COLUMN portal_token VARCHAR(64)'),
+            ('portal_token_index', 'CREATE UNIQUE INDEX IF NOT EXISTS ix_clients_portal_token ON clients (portal_token)'),
         ('receipt_cat',      'CREATE TABLE IF NOT EXISTS receipts (id SERIAL PRIMARY KEY, company_id INTEGER REFERENCES companies(id), job_id INTEGER REFERENCES jobs(id), filename VARCHAR(300) NOT NULL, category VARCHAR(100) DEFAULT \'Uncategorized\', amount FLOAT, vendor VARCHAR(200), description TEXT, uploaded_by VARCHAR(200), uploaded_at TIMESTAMP DEFAULT NOW())'),
         ('tech_std',         'CREATE TABLE IF NOT EXISTS tech_standards (id SERIAL PRIMARY KEY, company_id INTEGER UNIQUE REFERENCES companies(id), dress_code TEXT, eta_rules TEXT, deliverables TEXT, safety_rules TEXT, updated_at TIMESTAMP DEFAULT NOW())'),
         ('stripe_payment_link',     'ALTER TABLE jobs ADD COLUMN stripe_payment_link VARCHAR(500)'),

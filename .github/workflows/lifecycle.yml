@@ -12,7 +12,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: Send eligible trial lifecycle emails
+      - name: Run recurring jobs, reminders, and lifecycle follow-ups
         env:
           FIELD_BASE_CRON_SECRET: ${{ secrets.FIELD_BASE_CRON_SECRET }}
         run: |

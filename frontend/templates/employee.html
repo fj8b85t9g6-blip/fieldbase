@@ -133,6 +133,7 @@
   </nav>
 
   <main class="container" id="main-content">
+    <div id="offline-banner" style="display:none;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:8px;padding:10px 13px;margin-bottom:12px;font-size:12px;font-weight:700;" role="status">Offline mode: job updates will be saved on this device and synced when service returns.</div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
       <h2>My Jobs</h2>
       <div style="display:flex;gap:6px;">
@@ -306,6 +307,46 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
+    const OFFLINE_QUEUE_KEY = 'fieldbase-offline-actions-{{ current_user.id }}';
+    function offlineQueue() {
+      try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }
+      catch { return []; }
+    }
+    function setOfflineState() {
+      document.getElementById('offline-banner').style.display = navigator.onLine ? 'none' : 'block';
+    }
+    async function fieldFetch(url, options={}) {
+      try {
+        if (!navigator.onLine) throw new Error('offline');
+        return await fetch(url, options);
+      } catch (error) {
+        const isQueueable = ['POST','PUT'].includes(options.method) && typeof options.body === 'string';
+        if (!isQueueable) throw error;
+        const queue = offlineQueue();
+        queue.push({url, options, queuedAt:new Date().toISOString()});
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+        setOfflineState();
+        return {ok:true, json:async()=>({success:true,queued:true})};
+      }
+    }
+    async function replayOfflineQueue() {
+      const queue = offlineQueue();
+      if (!queue.length || !navigator.onLine) return;
+      const remaining = [];
+      for (const action of queue) {
+        try {
+          const response = await fetch(action.url, action.options);
+          if (!response.ok) remaining.push(action);
+        } catch { remaining.push(action); }
+      }
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+      if (!remaining.length) showToast('Offline updates synced');
+    }
+    window.addEventListener('online', () => { setOfflineState(); replayOfflineQueue(); });
+    window.addEventListener('offline', setOfflineState);
+    document.addEventListener('DOMContentLoaded', () => { setOfflineState(); replayOfflineQueue(); });
+    document.querySelectorAll('a[href="/logout"]').forEach(link => link.addEventListener('click', () => localStorage.removeItem(OFFLINE_QUEUE_KEY)));
+
     let calInit = false;
     function showView(view) {
       const isCal = view === 'cal';
@@ -443,13 +484,13 @@
     async function saveCloseout(jobId) {
       const checklist = [...document.querySelectorAll(`#checklist-${jobId} input[type="checkbox"]`)]
         .map(input => ({label: input.dataset.label, done: input.checked}));
-      const response = await fetch(`/api/jobs/${jobId}/closeout`, {
+      const response = await fieldFetch(`/api/jobs/${jobId}/closeout`, {
         method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({checklist})
       });
       const data = await response.json();
-      showToast(response.ok ? 'Closeout checklist saved' : (data.error || 'Could not save checklist'));
+      showToast(data.queued ? 'Closeout saved offline' : (response.ok ? 'Closeout checklist saved' : (data.error || 'Could not save checklist')));
     }
 
     function clearSignature(jobId) {
@@ -517,7 +558,7 @@
     }
 
     function doAction(jobId, action, body) {
-      fetch(`/api/jobs/${jobId}/${action}`, {
+      fieldFetch(`/api/jobs/${jobId}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -525,8 +566,8 @@
         .then(r => r.json())
         .then(data => {
           if (data.success) {
-            showToast(actionLabel(action));
-            setTimeout(() => location.reload(), 800);
+            showToast(data.queued ? `${actionLabel(action)} - queued offline` : actionLabel(action));
+            if (!data.queued) setTimeout(() => location.reload(), 800);
           } else {
             showToast(data.error || 'Could not update the job');
           }
@@ -549,13 +590,13 @@
 
     function saveNotes(jobId) {
       const text = document.getElementById(`note-${jobId}`).value.trim();
-      fetch(`/api/jobs/${jobId}/employee-notes`, {
+      fieldFetch(`/api/jobs/${jobId}/employee-notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: text })
-      }).then(() => {
-        showToast('Notes saved');
-        setTimeout(() => location.reload(), 800);
+      }).then(response => response.json()).then(data => {
+        showToast(data.queued ? 'Notes saved offline' : 'Notes saved');
+        if (!data.queued) setTimeout(() => location.reload(), 800);
       });
     }
 

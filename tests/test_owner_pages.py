@@ -65,6 +65,7 @@ class OwnerPageTests(unittest.TestCase):
             "/team",
             "/clients",
             "/job-templates",
+            "/contractor-os",
             "/reports",
             "/receipts",
             "/tech-standards",

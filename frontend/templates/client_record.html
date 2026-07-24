@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ record.title }} - {{ company.name }}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f6f9;color:#172033;min-height:100vh;padding:24px}.card{max-width:720px;margin:30px auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.08)}header{background:#17324f;color:#fff;padding:25px 30px}header h1{font-size:20px}header p{color:#bfdbfe;margin-top:5px;font-size:12px}.content{padding:28px 30px}.eyebrow{font-size:10px;font-weight:850;color:#64748b;text-transform:uppercase;letter-spacing:.08em}.content h2{font-size:25px;color:#17324f;margin:6px 0}.amount{font-size:30px;color:#17324f;font-weight:900;margin:16px 0}.scope{background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:16px;white-space:pre-wrap;font-size:13px;line-height:1.55;margin:15px 0}.meta{color:#64748b;font-size:12px;line-height:1.7}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:10px;font-weight:850;text-transform:uppercase}.badge.approved,.badge.deposit_paid{background:#dcfce7;color:#166534}.badge.declined{background:#fee2e2;color:#991b1b}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:22px}.btn{border:0;border-radius:8px;padding:11px 18px;background:#2563eb;color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer}.btn.decline{background:#fff;color:#b91c1c;border:1px solid #fecaca}.btn.pay{background:#15803d}.notice{padding:12px;border-radius:8px;background:#dcfce7;color:#166534;font-size:13px;font-weight:750;margin:0 0 16px}.fine{font-size:10px;color:#94a3b8;margin-top:20px;line-height:1.5}@media(max-width:600px){body{padding:10px}.card{margin:10px auto}.content,header{padding:21px}.actions{flex-direction:column}.btn{width:100%}}
+  </style>
+</head>
+<body>
+<main class="card">
+  <header><h1>{{ company.name }}</h1><p>Secure {{ record.record_type.replace('_',' ')|title }} powered by FieldBase</p></header>
+  <section class="content">
+    {% if request.args.get('approved') %}<div class="notice">Thank you. Your approval has been recorded.</div>{% endif %}
+    {% if request.args.get('deposit') == 'success' %}<div class="notice">Thank you. Stripe is confirming your deposit.</div>{% endif %}
+    <span class="eyebrow">{{ record.record_type.replace('_',' ') }}</span>
+    <h2>{{ record.title }}</h2>
+    <span class="badge {{ record.status }}">{{ record.status.replace('_',' ') }}</span>
+    {% if record.amount %}<div class="amount">${{ '%.2f'|format(record.amount) }}</div>{% endif %}
+    {% if job %}<div class="meta">Job: {{ job.title }}{% if job.location %}<br>Location: {{ job.location }}{% endif %}</div>{% endif %}
+    {% if details.get('description') or details.get('scope') %}<div class="scope">{{ details.get('description') or details.get('scope') }}</div>{% endif %}
+    {% if details.get('options') %}<div class="meta"><strong>Options / Add-ons</strong><br>{{ details.get('options') }}</div>{% endif %}
+    {% if details.get('added_hours') %}<div class="meta">Additional time: {{ details.get('added_hours') }} hour(s)</div>{% endif %}
+    {% if details.get('deposit_percent') %}<div class="meta">Deposit required: {{ details.get('deposit_percent') }}%{% if details.get('deposit_amount') %} (${{ '%.2f'|format(details.get('deposit_amount')|float) }}){% endif %}</div>{% endif %}
+    {% if record.record_type in ('estimate','change_order') and not record.approved_at and record.status != 'declined' %}
+      <div class="actions"><form method="POST" action="/portal/record/{{ record.public_token }}/approve"><button class="btn" type="submit">Approve</button></form><form method="POST" action="/portal/record/{{ record.public_token }}/decline"><button class="btn decline" type="submit">Decline</button></form></div>
+    {% elif record.record_type == 'estimate' and record.status in ('approved','deposit_due') and details.get('deposit_percent')|float > 0 %}
+      <div class="actions"><form method="POST" action="/portal/record/{{ record.public_token }}/deposit"><button class="btn pay" type="submit">Pay Deposit Securely</button></form></div>
+    {% endif %}
+    {% if record.record_type == 'review_request' %}
+      <div class="scope">Thank you for trusting {{ company.name }}. Your feedback helps a small business grow.</div>
+      {% if details.get('review_url') %}<div class="actions"><a class="btn" href="{{ details.get('review_url') }}" rel="noopener noreferrer">Leave a Review</a></div>{% endif %}
+      {% if details.get('referral_offer') %}<p class="meta">Referral thank-you: {{ details.get('referral_offer') }}</p>{% endif %}
+      {% if request.args.get('referred') %}<div class="notice" style="margin-top:14px">Referral received. Thank you for supporting a small business.</div>{% else %}<form method="POST" action="/portal/record/{{ record.public_token }}/referral" style="display:grid;gap:9px;margin-top:16px"><label class="meta">Referral name<input name="name" required style="display:block;width:100%;margin-top:4px;padding:10px;border:1px solid #cbd5e1;border-radius:7px"></label><label class="meta">Referral email<input name="email" type="email" required style="display:block;width:100%;margin-top:4px;padding:10px;border:1px solid #cbd5e1;border-radius:7px"></label><label class="meta">What do they need?<textarea name="details" style="display:block;width:100%;min-height:70px;margin-top:4px;padding:10px;border:1px solid #cbd5e1;border-radius:7px"></textarea></label><button class="btn" type="submit">Send Referral</button></form>{% endif %}
+    {% endif %}
+    <p class="fine">Approvals are timestamped by FieldBase. Confirm pricing, scope, and terms before approving.</p>
+  </section>
+</main>
+</body></html>

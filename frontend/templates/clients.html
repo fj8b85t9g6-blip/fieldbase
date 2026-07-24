@@ -50,6 +50,7 @@
               {% if client.address %}<span>{{ client.address }}</span>{% endif %}
             </div>
             <span class="job-count">{{ job_counts.get(client.id,0) }} job{{ 's' if job_counts.get(client.id,0) != 1 else '' }} · {{ client.billing_terms or 'Net 30' }}</span>
+            {% if client.portal_token %}<a href="/portal/{{ client.portal_token }}" target="_blank" rel="noopener" style="display:inline-flex;margin:9px 0 0 8px;color:#1d4ed8;font-size:11px;font-weight:750;text-decoration:none">Open Client Portal ↗</a>{% endif %}
           </div>
           <button class="btn danger" type="button" onclick="removeClient({{ client.id }})">Delete</button>
         </article>
