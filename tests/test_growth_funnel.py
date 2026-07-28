@@ -94,6 +94,90 @@ class GrowthFunnelTests(unittest.TestCase):
         response = self.client.get("/growth")
         self.assertEqual(response.status_code, 404)
 
+    def test_growth_dashboard_includes_first_assignment_stage(self):
+        unique = uuid.uuid4().hex[:10]
+        admin_email = f"{unique}@admin.test"
+        with app.app_context():
+            company = Company(name=f"Admin Test {unique}", slug=f"admin-test-{unique}")
+            db.session.add(company)
+            db.session.flush()
+            user = User(
+                company_id=company.id,
+                email=admin_email,
+                password_hash=bcrypt.hashpw(b"password", bcrypt.gensalt()),
+                name="Admin Test",
+                role="owner",
+            )
+            db.session.add(user)
+            db.session.commit()
+            user_id = str(user.id)
+
+        with self.client.session_transaction() as session:
+            session["_user_id"] = user_id
+            session["_fresh"] = True
+
+        with patch.dict(os.environ, {"FIELD_BASE_ADMIN_EMAILS": admin_email}):
+            response = self.client.get("/growth")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"First jobs assigned", response.data)
+
+    def test_growth_dashboard_excludes_internal_qa_sources(self):
+        unique = uuid.uuid4().hex[:10]
+        admin_email = f"{unique}@admin.test"
+        with app.app_context():
+            admin_company = Company(
+                name=f"Admin Test {unique}",
+                slug=f"admin-test-{unique}",
+            )
+            external_company = Company(
+                name=f"External Test {unique}",
+                slug=f"external-test-{unique}",
+            )
+            internal_company = Company(
+                name=f"Internal Test {unique}",
+                slug=f"internal-test-{unique}",
+            )
+            db.session.add_all(
+                [admin_company, external_company, internal_company]
+            )
+            db.session.flush()
+            admin = User(
+                company_id=admin_company.id,
+                email=admin_email,
+                password_hash=bcrypt.hashpw(b"password", bcrypt.gensalt()),
+                name="Admin Test",
+                role="owner",
+            )
+            db.session.add(admin)
+            db.session.add_all([
+                MarketingEvent(
+                    company_id=external_company.id,
+                    visitor_id=str(uuid.uuid4()),
+                    event_name="registration_completed",
+                    source=f"external-{unique}",
+                ),
+                MarketingEvent(
+                    company_id=internal_company.id,
+                    visitor_id=str(uuid.uuid4()),
+                    event_name="registration_completed",
+                    source="codex_audit",
+                ),
+            ])
+            db.session.commit()
+            user_id = str(admin.id)
+
+        with self.client.session_transaction() as session:
+            session["_user_id"] = user_id
+            session["_fresh"] = True
+
+        with patch.dict(os.environ, {"FIELD_BASE_ADMIN_EMAILS": admin_email}):
+            response = self.client.get("/growth")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(f"external-{unique}".encode(), response.data)
+        self.assertNotIn(b"codex_audit", response.data)
+
     def test_public_acquisition_surfaces_render(self):
         paths = [
             "/for/workmarket-contractors",

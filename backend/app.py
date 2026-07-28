@@ -542,14 +542,26 @@ def register():
         email        = request.form.get('email', '').strip().lower()
         password     = request.form.get('password', '')
         trade_type   = request.form.get('trade_type', '').strip()
+        form_values = {
+            'company_name': company_name,
+            'name': name,
+            'email': email,
+            'trade_type': trade_type,
+        }
+
+        _record_marketing_event('registration_form_submitted', once=True)
 
         if not all([company_name, name, email, password]):
             flash('All fields are required.')
-            return render_template('register.html')
+            return render_template('register.html', form_values=form_values)
+
+        if len(password) < 8:
+            flash('Use at least 8 characters for your password.')
+            return render_template('register.html', form_values=form_values)
 
         if User.query.filter_by(email=email).first():
-            flash('An account with that email already exists.')
-            return render_template('register.html')
+            flash('An account with that email already exists. Sign in below instead.')
+            return render_template('register.html', form_values=form_values)
 
         slug = company_name.lower().replace(' ', '-').replace("'", '')
         base_slug = slug
@@ -591,7 +603,7 @@ def register():
         return redirect(url_for('index'))
 
     _record_marketing_event('registration_started', once=True)
-    return render_template('register.html')
+    return render_template('register.html', form_values={})
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -655,6 +667,7 @@ def index():
     onboarding = {
         'employee_added': employee_count > 0,
         'job_created': len(jobs) > 0,
+        'job_assigned': any(bool(job.tech_assigned) for job in jobs),
         'payouts_connected': bool(company.connect_charges_enabled),
         'subscribed': company.subscription_status == 'active',
     }
@@ -2577,6 +2590,13 @@ def update_job(job_id):
 
         db.session.commit()
 
+        if job.tech_assigned and (job.tech_assigned or '') != old_tech:
+            _record_marketing_event(
+                'first_job_assigned',
+                company_id=current_user.company_id,
+                once=True,
+            )
+
         try:
             detect_and_save_conflicts(current_user.company_id)
         except Exception as ce:
@@ -3497,19 +3517,30 @@ def growth_dashboard():
         user.company_id
         for user in User.query.filter(User.email.in_(internal_emails)).all()
     } if internal_emails else set()
+    internal_sources = {
+        'codex_audit',
+        'synthetic_qa',
+    } | {
+        source.strip().lower()
+        for source in os.environ.get('FIELD_BASE_INTERNAL_SOURCES', '').split(',')
+        if source.strip()
+    }
 
     cutoff = datetime.utcnow() - timedelta(days=30)
     events = MarketingEvent.query.order_by(MarketingEvent.created_at.desc()).all()
     events = [
         event for event in events
-        if not event.company_id or event.company_id not in internal_company_ids
+        if (not event.company_id or event.company_id not in internal_company_ids)
+        and (event.source or '').lower() not in internal_sources
     ]
 
     stages = [
         ('landing_view', 'Qualified visits', 'visitor'),
         ('registration_started', 'Registration starts', 'visitor'),
+        ('registration_form_submitted', 'Registration forms submitted', 'visitor'),
         ('registration_completed', 'Trials created', 'company'),
         ('first_job_created', 'First jobs created', 'company'),
+        ('first_job_assigned', 'First jobs assigned', 'company'),
         ('first_job_completed', 'First jobs completed', 'company'),
         ('first_invoice_sent', 'First invoices sent', 'company'),
         ('checkout_started', 'Checkout starts', 'company'),
