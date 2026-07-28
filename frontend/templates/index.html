@@ -217,14 +217,14 @@
 
 <main class="container" id="main-content">
 
-    {% if onboarding_completed < 4 %}
+    {% if onboarding_completed < 5 %}
     <section class="onboarding" aria-labelledby="onboarding-title">
         <div class="onboarding-head">
             <div>
                 <h2 id="onboarding-title">Get your first job from scheduled to paid</h2>
                 <p>Complete these steps to make FieldBase useful for your crew.</p>
             </div>
-            <div class="onboarding-progress">{{ onboarding_completed }}/4 complete</div>
+            <div class="onboarding-progress">{{ onboarding_completed }}/5 complete</div>
         </div>
         <div class="onboarding-grid">
             <a class="onboarding-step {% if onboarding.employee_added %}done{% endif %}" href="/team">
@@ -235,12 +235,16 @@
                 <span>{% if onboarding.job_created %}✓{% else %}2.{% endif %} Schedule your first job</span>
                 <span>{% if onboarding.job_created %}Done{% else %}Schedule →{% endif %}</span>
             </a>
+            <a class="onboarding-step {% if onboarding.job_assigned %}done{% endif %}" href="/calendar">
+                <span>{% if onboarding.job_assigned %}✓{% else %}3.{% endif %} Assign the job to a technician</span>
+                <span>{% if onboarding.job_assigned %}Done{% else %}Assign →{% endif %}</span>
+            </a>
             <a class="onboarding-step {% if onboarding.payouts_connected %}done{% endif %}" href="/settings#get-paid">
-                <span>{% if onboarding.payouts_connected %}✓{% else %}3.{% endif %} Connect payouts</span>
+                <span>{% if onboarding.payouts_connected %}✓{% else %}4.{% endif %} Connect payouts</span>
                 <span>{% if onboarding.payouts_connected %}Done{% else %}Connect →{% endif %}</span>
             </a>
             <a class="onboarding-step {% if onboarding.subscribed %}done{% endif %}" href="/settings#subscription">
-                <span>{% if onboarding.subscribed %}✓{% else %}4.{% endif %} Choose your plan</span>
+                <span>{% if onboarding.subscribed %}✓{% else %}5.{% endif %} Choose your plan</span>
                 <span>{% if onboarding.subscribed %}Done{% else %}View plans →{% endif %}</span>
             </a>
         </div>

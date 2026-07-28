@@ -109,6 +109,35 @@ class JobWorkflowTests(unittest.TestCase):
             self.assertEqual(first_job_events, 1)
             self.assertEqual(first_assignment_events, 1)
 
+    def test_assigning_an_existing_job_records_activation_once(self):
+        job_id = self._create_job(assigned=False)
+        payload = {
+            "title": "Network closet repair",
+            "platform": "workmarket",
+            "start": "2026-07-24T09:00",
+            "end": "2026-07-24T11:00",
+            "tech": "Assigned Tech",
+            "job_pay": 450,
+            "client_email": "client@example.test",
+        }
+
+        first_response = self.client.put(f"/api/jobs/{job_id}", json=payload)
+        second_response = self.client.put(f"/api/jobs/{job_id}", json=payload)
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        with app.app_context():
+            first_assignment_events = MarketingEvent.query.filter_by(
+                company_id=self.company_id,
+                event_name="first_job_assigned",
+            ).count()
+            self.assertEqual(first_assignment_events, 1)
+
+        dashboard = self.client.get("/")
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertIn(b"3/5 complete", dashboard.data)
+        self.assertIn(b"Assign the job to a technician", dashboard.data)
+
     def test_invalid_job_time_is_rejected(self):
         response = self.client.post(
             "/api/jobs",

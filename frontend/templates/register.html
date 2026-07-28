@@ -17,9 +17,11 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; }
     .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); padding: 40px 28px; width: 100%; max-width: 420px; }
-    .logo { text-align: center; margin-bottom: 32px; }
+    .logo { text-align: center; margin-bottom: 20px; }
     .logo h1 { font-size: 28px; font-weight: 700; color: #1e3a5f; letter-spacing: -0.5px; }
-    .logo p { color: #6b7280; font-size: 14px; margin-top: 4px; }
+    .logo p { color: #4b5563; font-size: 15px; margin-top: 6px; line-height: 1.45; }
+    .assurance { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:0 0 24px; }
+    .assurance span { background:#eff6ff; color:#1e3a5f; border:1px solid #bfdbfe; border-radius:6px; padding:9px 6px; text-align:center; font-size:11px; font-weight:700; line-height:1.25; }
     .flash { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 14px; border-radius: 6px; font-size: 14px; margin-bottom: 20px; }
     .section-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; margin-top: 20px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
     label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
@@ -27,6 +29,9 @@
     input:focus, select:focus { border-color: #1e3a5f; }
     button { width: 100%; padding: 12px; background: #1e3a5f; color: #fff; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: background 0.2s; }
     button:hover { background: #163055; }
+    button:disabled { opacity:.7; cursor:wait; }
+    .terms { margin-top:12px; color:#6b7280; font-size:11px; line-height:1.45; text-align:center; }
+    .terms a { color:#1e3a5f; }
     .footer { text-align: center; margin-top: 24px; font-size: 14px; color: #6b7280; }
     .footer a { color: #1e3a5f; text-decoration: none; font-weight: 600; }
   </style>
@@ -35,41 +40,55 @@
   <div class="card">
     <div class="logo">
       <h1>FieldBase</h1>
-      <p>Create your business account</p>
+      <p>Put your first field job on one crew calendar.</p>
+    </div>
+    <div class="assurance" aria-label="Trial details">
+      <span>14 days free</span>
+      <span>No card required</span>
+      <span>About 2 minutes</span>
     </div>
     {% with messages = get_flashed_messages() %}
       {% if messages %}
         <div class="flash">{{ messages[0] }}</div>
       {% endif %}
     {% endwith %}
-    <form method="POST" action="/register">
+    <form method="POST" action="/register" id="registration-form">
       <div class="section-label">Your Business</div>
-      <label>Company Name</label>
-      <input type="text" name="company_name" required placeholder="e.g. Johnson Field Services">
-      <label>Primary Work Type <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
-      <select name="trade_type">
+      <label for="company_name">Company Name</label>
+      <input id="company_name" type="text" name="company_name" required autocomplete="organization" placeholder="e.g. Johnson Field Services" value="{{ form_values.get('company_name', '') }}">
+      <label for="trade_type">Primary Work Type <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+      <select id="trade_type" name="trade_type">
         <option value="">Select your work type</option>
-        <option value="low_voltage">Low-voltage / cabling</option>
-        <option value="it_field_service">IT field service / break-fix</option>
-        <option value="security_cameras">Security / cameras</option>
-        <option value="pos">POS installation / service</option>
-        <option value="general_field_service">General field service</option>
-        <option value="other">Other</option>
+        <option value="low_voltage" {% if form_values.get('trade_type') == 'low_voltage' %}selected{% endif %}>Low-voltage / cabling</option>
+        <option value="it_field_service" {% if form_values.get('trade_type') == 'it_field_service' %}selected{% endif %}>IT field service / break-fix</option>
+        <option value="security_cameras" {% if form_values.get('trade_type') == 'security_cameras' %}selected{% endif %}>Security / cameras</option>
+        <option value="pos" {% if form_values.get('trade_type') == 'pos' %}selected{% endif %}>POS installation / service</option>
+        <option value="general_field_service" {% if form_values.get('trade_type') == 'general_field_service' %}selected{% endif %}>General field service</option>
+        <option value="other" {% if form_values.get('trade_type') == 'other' %}selected{% endif %}>Other</option>
       </select>
 
       <div class="section-label">Owner Account</div>
-      <label>Your Name</label>
-      <input type="text" name="name" required placeholder="First and last name">
-      <label>Email Address</label>
-      <input type="email" name="email" required placeholder="you@company.com">
-      <label>Password</label>
-      <input type="password" name="password" required placeholder="Create a strong password" minlength="8">
+      <label for="name">Your Name</label>
+      <input id="name" type="text" name="name" required autocomplete="name" placeholder="First and last name" value="{{ form_values.get('name', '') }}">
+      <label for="email">Email Address</label>
+      <input id="email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="you@company.com" value="{{ form_values.get('email', '') }}">
+      <label for="password">Password</label>
+      <input id="password" type="password" name="password" required autocomplete="new-password" placeholder="At least 8 characters" minlength="8">
 
-      <button type="submit">Create Account</button>
+      <button type="submit" id="registration-submit">Start My Free Trial</button>
+      <p class="terms">By continuing, you agree to the <a href="/terms">Terms</a> and acknowledge the <a href="/privacy">Privacy Policy</a>. Add technicians only when you are ready.</p>
     </form>
     <div class="footer">
       Already have an account? <a href="/login">Sign in</a>
     </div>
   </div>
+  <script>
+    const registrationForm = document.getElementById('registration-form');
+    const registrationSubmit = document.getElementById('registration-submit');
+    registrationForm.addEventListener('submit', () => {
+      registrationSubmit.disabled = true;
+      registrationSubmit.textContent = 'Starting your trial…';
+    });
+  </script>
 </body>
 </html>
