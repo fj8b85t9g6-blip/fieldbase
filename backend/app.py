@@ -3517,12 +3517,21 @@ def growth_dashboard():
         user.company_id
         for user in User.query.filter(User.email.in_(internal_emails)).all()
     } if internal_emails else set()
+    internal_sources = {
+        'codex_audit',
+        'synthetic_qa',
+    } | {
+        source.strip().lower()
+        for source in os.environ.get('FIELD_BASE_INTERNAL_SOURCES', '').split(',')
+        if source.strip()
+    }
 
     cutoff = datetime.utcnow() - timedelta(days=30)
     events = MarketingEvent.query.order_by(MarketingEvent.created_at.desc()).all()
     events = [
         event for event in events
-        if not event.company_id or event.company_id not in internal_company_ids
+        if (not event.company_id or event.company_id not in internal_company_ids)
+        and (event.source or '').lower() not in internal_sources
     ]
 
     stages = [
