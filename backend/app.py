@@ -681,6 +681,46 @@ def index():
         json_list=_json_list)
 
 
+@app.route('/demo', methods=['GET', 'POST'])
+def interactive_demo():
+    """Let a prospect experience the core workflow without creating an account."""
+    _capture_attribution()
+    actions = ('receive', 'assign', 'complete', 'invoice')
+    step = min(max(int(session.get('fieldbase_demo_step', 0)), 0), len(actions))
+
+    if request.method == 'POST':
+        action = request.form.get('action', '').strip().lower()
+        if action == 'reset':
+            session['fieldbase_demo_step'] = 0
+            return redirect(url_for('interactive_demo'))
+        if step >= len(actions) or action != actions[step]:
+            abort(400)
+        if step == 0:
+            _record_marketing_event('demo_started', once=True)
+        step += 1
+        session['fieldbase_demo_step'] = step
+        if step == len(actions):
+            _record_marketing_event('demo_completed', once=True)
+        return redirect(url_for('interactive_demo'))
+
+    _record_marketing_event('demo_viewed', once=True)
+    return render_template('demo.html', step=step, total_steps=len(actions))
+
+
+@app.route('/demo/register')
+def demo_register():
+    """Measure trial intent after the demo while preserving first-touch attribution."""
+    if session.get('fieldbase_demo_step', 0) < 4:
+        return redirect(url_for('interactive_demo'))
+    _record_marketing_event('demo_registration_clicked', once=True)
+    return redirect(url_for(
+        'register',
+        utm_source='interactive_demo',
+        utm_medium='product',
+        utm_campaign='demo_to_trial',
+    ))
+
+
 @app.route('/for/<slug>')
 def segment_page(slug):
     page = SEGMENT_PAGES.get(slug)
@@ -3557,22 +3597,32 @@ def growth_dashboard():
             return len({event.company_id for event in matching if event.company_id})
         return len({event.visitor_id for event in matching if event.visitor_id})
 
-    funnel = []
-    previous_all = None
-    previous_30d = None
-    for event_name, label, entity in stages:
-        count_all = stage_count(event_name, entity)
-        count_30d = stage_count(event_name, entity, recent=True)
-        funnel.append({
-            'event_name': event_name,
-            'label': label,
-            'all_time': count_all,
-            'last_30_days': count_30d,
-            'step_rate_all': round(count_all / previous_all * 100, 1) if previous_all else None,
-            'step_rate_30d': round(count_30d / previous_30d * 100, 1) if previous_30d else None,
-        })
-        previous_all = count_all
-        previous_30d = count_30d
+    def build_funnel(stage_definitions):
+        result = []
+        previous_all = None
+        previous_30d = None
+        for event_name, label, entity in stage_definitions:
+            count_all = stage_count(event_name, entity)
+            count_30d = stage_count(event_name, entity, recent=True)
+            result.append({
+                'event_name': event_name,
+                'label': label,
+                'all_time': count_all,
+                'last_30_days': count_30d,
+                'step_rate_all': round(count_all / previous_all * 100, 1) if previous_all else None,
+                'step_rate_30d': round(count_30d / previous_30d * 100, 1) if previous_30d else None,
+            })
+            previous_all = count_all
+            previous_30d = count_30d
+        return result
+
+    funnel = build_funnel(stages)
+    demo_funnel = build_funnel([
+        ('demo_viewed', 'Demo views', 'visitor'),
+        ('demo_started', 'Demo starts', 'visitor'),
+        ('demo_completed', 'Demo completions', 'visitor'),
+        ('demo_registration_clicked', 'Trial clicks after demo', 'visitor'),
+    ])
 
     source_counts = {}
     for event in events:
@@ -3584,6 +3634,7 @@ def growth_dashboard():
     return render_template(
         'growth.html',
         funnel=funnel,
+        demo_funnel=demo_funnel,
         source_counts=sorted(source_counts.items(), key=lambda item: item[1], reverse=True),
         generated_at=datetime.utcnow(),
     )

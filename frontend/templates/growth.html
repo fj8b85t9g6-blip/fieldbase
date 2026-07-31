@@ -59,6 +59,33 @@
     </div>
 
     <div class="card">
+      <h2 style="margin-top:0;color:#1e3a5f;">Interactive demo experiment</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Stage</th>
+            <th>All time</th>
+            <th>Step rate</th>
+            <th>Last 30 days</th>
+            <th>30-day step rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stage in demo_funnel %}
+          <tr>
+            <td><strong>{{ stage.label }}</strong></td>
+            <td>{{ stage.all_time }}</td>
+            <td>{{ stage.step_rate_all ~ '%' if stage.step_rate_all is not none else '—' }}</td>
+            <td>{{ stage.last_30_days }}</td>
+            <td>{{ stage.step_rate_30d ~ '%' if stage.step_rate_30d is not none else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p style="color:#6b7280;font-size:13px;margin:16px 0 0;">Review after 20 external demo starts or 14 days, whichever comes later. Primary metric: demo completion rate.</p>
+    </div>
+
+    <div class="card">
       <h2 style="margin-top:0;color:#1e3a5f;">Trial sources</h2>
       <div class="sources">
         {% for source, count in source_counts %}
@@ -70,7 +97,7 @@
     </div>
 
     <div class="note">
-      Decision rule: improve the largest stage-to-stage loss with one bounded experiment. Do not increase traffic until first-job activation and payment attribution are verified end to end.
+      Decision rule: if visitors do not finish the demo, revise the workflow or message. If they finish but do not click through, revise the offer or trust proof. If they click but do not submit registration, fix signup friction. Do not count internal or synthetic checks as demand.
     </div>
   </main>
 </body>

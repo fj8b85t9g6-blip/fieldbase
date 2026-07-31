@@ -13,6 +13,8 @@ os.environ["SECRET_KEY"] = "growth-test-only"
 
 app_module = importlib.import_module("backend.app")
 Company = app_module.Company
+InvoiceRecord = app_module.InvoiceRecord
+Job = app_module.Job
 MarketingEvent = app_module.MarketingEvent
 User = app_module.User
 app = app_module.app
@@ -121,6 +123,73 @@ class GrowthFunnelTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"First jobs assigned", response.data)
+        self.assertIn(b"Interactive demo experiment", response.data)
+
+    def test_demo_runs_sequentially_without_creating_operational_records(self):
+        unique = uuid.uuid4().hex[:10]
+        with app.app_context():
+            companies_before = Company.query.count()
+            jobs_before = Job.query.count()
+            invoices_before = InvoiceRecord.query.count()
+
+        response = self.client.get(
+            f"/demo?utm_source=demo-{unique}&utm_medium=test"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Receive sample job", response.data)
+
+        for action, next_copy in [
+            ("receive", b"Assign Jordan"),
+            ("assign", b"Mark work complete"),
+            ("complete", b"Create and send invoice"),
+            ("invoice", b"Job moved from scheduled to invoiced"),
+        ]:
+            response = self.client.post(
+                "/demo",
+                data={"action": action},
+                follow_redirects=True,
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(next_copy, response.data)
+
+        with app.app_context():
+            self.assertEqual(Company.query.count(), companies_before)
+            self.assertEqual(Job.query.count(), jobs_before)
+            self.assertEqual(InvoiceRecord.query.count(), invoices_before)
+            self.assertEqual(MarketingEvent.query.filter_by(
+                event_name="demo_viewed", source=f"demo-{unique}"
+            ).count(), 1)
+            self.assertEqual(MarketingEvent.query.filter_by(
+                event_name="demo_started", source=f"demo-{unique}"
+            ).count(), 1)
+            self.assertEqual(MarketingEvent.query.filter_by(
+                event_name="demo_completed", source=f"demo-{unique}"
+            ).count(), 1)
+
+    def test_demo_cannot_skip_steps_and_trial_click_requires_completion(self):
+        response = self.client.post("/demo", data={"action": "invoice"})
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.get("/demo/register")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith("/demo"))
+
+    def test_completed_demo_records_trial_intent_once(self):
+        unique = uuid.uuid4().hex[:10]
+        self.client.get(f"/demo?utm_source=demo-click-{unique}")
+        for action in ("receive", "assign", "complete", "invoice"):
+            self.client.post("/demo", data={"action": action})
+
+        first = self.client.get("/demo/register")
+        second = self.client.get("/demo/register")
+        self.assertEqual(first.status_code, 302)
+        self.assertIn("/register?", first.location)
+        self.assertEqual(second.status_code, 302)
+        with app.app_context():
+            self.assertEqual(MarketingEvent.query.filter_by(
+                event_name="demo_registration_clicked",
+                source=f"demo-click-{unique}",
+            ).count(), 1)
 
     def test_growth_dashboard_excludes_internal_qa_sources(self):
         unique = uuid.uuid4().hex[:10]
@@ -180,6 +249,7 @@ class GrowthFunnelTests(unittest.TestCase):
 
     def test_public_acquisition_surfaces_render(self):
         paths = [
+            "/demo",
             "/for/workmarket-contractors",
             "/for/field-nation-contractors",
             "/for/low-voltage-contractors",
