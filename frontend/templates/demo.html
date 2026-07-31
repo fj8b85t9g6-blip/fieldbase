@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Try FieldBase — No Account Required</title>
+  <meta name="description" content="Run a sample field-service job from dispatch to invoice in about 60 seconds. No account or credit card required.">
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:#1f2937; background:#f4f7fb; }
+    nav { height:64px; padding:0 28px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; }
+    nav a { color:#1e3a5f; text-decoration:none; font-weight:700; }
+    nav .trial { font-size:14px; padding:9px 15px; border:1px solid #1e3a5f; border-radius:7px; }
+    main { max-width:960px; margin:0 auto; padding:44px 20px 64px; }
+    .eyebrow { color:#2563eb; text-transform:uppercase; letter-spacing:.08em; font-size:12px; font-weight:800; text-align:center; }
+    h1 { margin:10px auto 12px; max-width:720px; color:#17385f; font-size:38px; line-height:1.12; text-align:center; }
+    .intro { margin:0 auto 30px; max-width:650px; color:#64748b; font-size:17px; line-height:1.55; text-align:center; }
+    .progress { max-width:720px; margin:0 auto 24px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    .progress div { height:7px; border-radius:999px; background:#dbe4ef; }
+    .progress div.done { background:#22c55e; }
+    .workspace { display:grid; grid-template-columns:1fr 1.3fr; gap:20px; }
+    .card { background:#fff; border:1px solid #dfe7f0; border-radius:14px; box-shadow:0 5px 18px rgba(30,58,95,.07); padding:24px; }
+    .card h2 { margin:0 0 18px; color:#1e3a5f; font-size:19px; }
+    .label { margin-top:14px; color:#94a3b8; font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+    .value { margin-top:4px; font-size:15px; font-weight:600; }
+    .money { color:#15803d; font-size:23px; font-weight:800; }
+    .timeline { list-style:none; margin:0; padding:0; }
+    .timeline li { display:grid; grid-template-columns:34px 1fr; gap:12px; min-height:62px; color:#94a3b8; }
+    .dot { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#e5e7eb; color:#64748b; font-weight:800; }
+    .timeline li.done { color:#1f2937; }
+    .timeline li.done .dot { background:#dcfce7; color:#15803d; }
+    .timeline li.current .dot { background:#dbeafe; color:#1d4ed8; box-shadow:0 0 0 4px #eff6ff; }
+    .timeline strong { display:block; color:inherit; padding-top:4px; }
+    .timeline span { display:block; margin-top:3px; font-size:13px; }
+    form { margin-top:10px; }
+    button, .button { width:100%; border:0; border-radius:9px; padding:14px 18px; background:#1e3a5f; color:#fff; font:inherit; font-weight:800; cursor:pointer; text-align:center; text-decoration:none; display:block; }
+    button:hover, .button:hover { background:#163055; }
+    .complete { margin-top:12px; padding:16px; border-radius:10px; background:#ecfdf5; color:#166534; text-align:center; }
+    .complete strong { display:block; font-size:18px; margin-bottom:5px; }
+    .reset { background:none; color:#64748b; padding:10px; font-weight:600; font-size:13px; }
+    .reset:hover { background:none; color:#1e3a5f; }
+    .fine { text-align:center; color:#94a3b8; font-size:12px; margin-top:18px; }
+    @media (max-width:720px) { h1 { font-size:30px; } .workspace { grid-template-columns:1fr; } nav { padding:0 18px; } }
+  </style>
+</head>
+<body>
+  <nav><a href="/">FieldBase</a><a class="trial" href="/register">Start free trial</a></nav>
+  <main>
+    <div class="eyebrow">Interactive product demo</div>
+    <h1>Move one field job from dispatch to invoice</h1>
+    <p class="intro">Use realistic sample data to see the owner workflow. Nothing is saved, and no account is required.</p>
+
+    <div class="progress" aria-label="Demo progress: {{ step }} of {{ total_steps }} steps">
+      {% for position in range(total_steps) %}<div class="{{ 'done' if position < step else '' }}"></div>{% endfor %}
+    </div>
+
+    <div class="workspace">
+      <section class="card">
+        <h2>Job #1042</h2>
+        <div class="label">Client</div><div class="value">Northstar Dental Group</div>
+        <div class="label">Scope</div><div class="value">Replace reception network switch</div>
+        <div class="label">Location</div><div class="value">218 Market Street</div>
+        <div class="label">Scheduled</div><div class="value">Today · 1:00–3:00 PM</div>
+        <div class="label">Job value</div><div class="value money">$685.00</div>
+      </section>
+
+      <section class="card">
+        <h2>Owner workflow</h2>
+        <ol class="timeline">
+          <li class="{{ 'done' if step > 0 else 'current' }}"><div class="dot">{{ '✓' if step > 0 else '1' }}</div><div><strong>Receive the job</strong><span>Bring marketplace and direct work into one queue.</span></div></li>
+          <li class="{{ 'done' if step > 1 else ('current' if step == 1 else '') }}"><div class="dot">{{ '✓' if step > 1 else '2' }}</div><div><strong>Assign a technician</strong><span>Send Jordan the schedule, location, and scope.</span></div></li>
+          <li class="{{ 'done' if step > 2 else ('current' if step == 2 else '') }}"><div class="dot">{{ '✓' if step > 2 else '3' }}</div><div><strong>Complete the work</strong><span>Capture time, closeout notes, and field proof.</span></div></li>
+          <li class="{{ 'done' if step > 3 else ('current' if step == 3 else '') }}"><div class="dot">{{ '✓' if step > 3 else '4' }}</div><div><strong>Send the invoice</strong><span>Turn completed work into a ready-to-pay invoice.</span></div></li>
+        </ol>
+
+        {% if step == 0 %}<form method="post"><input type="hidden" name="action" value="receive"><button type="submit">Receive sample job</button></form>{% endif %}
+        {% if step == 1 %}<form method="post"><input type="hidden" name="action" value="assign"><button type="submit">Assign Jordan</button></form>{% endif %}
+        {% if step == 2 %}<form method="post"><input type="hidden" name="action" value="complete"><button type="submit">Mark work complete</button></form>{% endif %}
+        {% if step == 3 %}<form method="post"><input type="hidden" name="action" value="invoice"><button type="submit">Create and send invoice</button></form>{% endif %}
+        {% if step == 4 %}
+          <div class="complete"><strong>Job moved from scheduled to invoiced.</strong>You just ran the core FieldBase workflow.</div>
+          <a class="button" style="margin-top:14px" href="/demo/register">Run your own jobs free for 14 days</a>
+          <form method="post"><input type="hidden" name="action" value="reset"><button class="reset" type="submit">Replay demo</button></form>
+        {% endif %}
+      </section>
+    </div>
+    <p class="fine">Sample data only · about 60 seconds · no credit card required</p>
+  </main>
+</body>
+</html>
