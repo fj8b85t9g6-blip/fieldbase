@@ -1,0 +1,6 @@
+# Marketing Decision Log
+
+| Date | Observation | Action | Primary metric | Result | Confidence | Decision | Next review |
+|---|---|---|---|---|---|---|---|
+| 2026-08-01 | Post-demo deployment has 43 landing visitors, 2 demo views, and 0 demo starts; all traffic remains direct/unattributed | Sent five-recipient personalized batch 02 and published one attributed founder LinkedIn post to the 60-second demo | External demo completion rate; downstream demo-to-registration click | Launch verified; customer response pending | High on launch state, low on channel response | Continue until 20 external demo starts or 2026-08-14, whichever is later | 2026-08-04 for delivery/replies; experiment gate no earlier than 2026-08-14 |
+| 2026-08-01 | New LinkedIn account had 0 connections, 0 followers, no headline or About section, 0 profile views, 0 search appearances, and 3 post impressions | Positioned the profile around FieldBase, scheduled a three-post first-week queue, and enabled a bounded weekday operating loop | Qualified profile visits, relevant connections, comments, attributed demo starts | Profile and queue verified; audience response pending | High on account state, low on channel response | Build a relevant network and publishing baseline without treating activity as demand | 2026-08-04 |

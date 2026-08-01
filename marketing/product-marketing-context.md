@@ -1,0 +1,25 @@
+# FieldBase Marketing Context
+
+- Product: FieldBase
+- Initial customer: Owner of a 1–5 person US field-service crew doing low-voltage, cabling, POS, security/camera, or IT break-fix work.
+- Buying situation: Jobs arrive from marketplaces, calls, email, screenshots, and direct clients; the owner is coordinating schedule, technicians, closeout, and invoices manually.
+- Functional job: Move each accepted job from intake to assigned, completed, invoiced, and paid in one workflow.
+- Emotional job: Stop carrying the schedule and unpaid paperwork in the owner's head.
+- Social job: Run a crew that looks reliable and organized to technicians and clients.
+- Pain evidence: Existing first-party and public industry evidence supports scattered dispatch, assignment, closeout, and invoicing as recurring work; external FieldBase conversion is not yet proven.
+- Current alternative: Paper calendar, text threads, spreadsheets, marketplace inboxes, and manually created invoices.
+- Unique mechanism: A contractor-focused job-to-payment workflow with rapid capture, conflict detection, technician execution, closeout, invoice, and payment status in one record.
+- First-value event: A visitor completes the four-action no-account demo; for a trial company, the owner creates and assigns a real first job.
+- Activation event: A real job reaches completed and invoice-sent.
+- Paid outcome: Repeated completed work enters a client payment path without separate paperwork.
+- Retention trigger: New job intake and weekly job completion/invoicing.
+- Primary CTA: Try the 60-second no-account demo.
+- Strongest proof: The live demo and production workflow are operational and instrumented; repeatable external activation and revenue are not proven.
+- Honest claim boundary: Marketplace sync, AI extraction, email delivery, and card-payment behavior are claimed only when currently configured and verified. Generated actors or copy are never presented as customer testimony.
+- Current largest funnel constraint: Qualified visitors are not starting the new demo. Since deployment, 43 landing visitors produced two demo views and zero starts.
+- Primary metric: Distinct external demo completions divided by distinct external demo starts; review after 20 external starts or 14 days, whichever comes later.
+- Blanket connector approval: enabled
+- Automatic sending, scheduling, and publishing: enabled
+- Authorized accounts and destinations: Gmail sender glenn.christopher.dinkins@gmail.com; Typefully social set 322485 publishing to Glenn Dinkins's LinkedIn profile. No other social destination is authorized by this workspace.
+- Required rights and disclosures: Use original FieldBase assets and copy. Label AI-generated visuals when platform rules require it. Include a simple opt-out in cold email. No fabricated users, testimonials, savings, or outcome guarantees.
+- Known unknowns: External demo completion rate, trial conversion rate, first-job activation, paid conversion, retention, gross profit, and whether the current audience-message-channel combination repeats.
