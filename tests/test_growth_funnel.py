@@ -191,6 +191,81 @@ class GrowthFunnelTests(unittest.TestCase):
                 source=f"demo-click-{unique}",
             ).count(), 1)
 
+    def test_public_profit_check_delivers_value_without_creating_records(self):
+        unique = uuid.uuid4().hex[:10]
+        with app.app_context():
+            companies_before = Company.query.count()
+            jobs_before = Job.query.count()
+            invoices_before = InvoiceRecord.query.count()
+
+        response = self.client.get(
+            f"/tools/job-profit-check?utm_source=profit-{unique}&utm_medium=test"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Know whether the job is worth taking", response.data)
+
+        response = self.client.post(
+            "/tools/job-profit-check",
+            data={
+                "job_pay": "300",
+                "estimated_hours": "4",
+                "travel_miles": "50",
+                "materials_cost": "25",
+                "platform_fee_percent": "10",
+                "helper_pay": "80",
+                "scope": "Replace and test the network switch.",
+                "payment_terms": "Net 14 after approved closeout",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"$131.50", response.data)
+        self.assertIn(b"$32.88", response.data)
+        self.assertIn(b"$368.50", response.data)
+        self.assertIn(b"Review the price or terms", response.data)
+
+        with app.app_context():
+            self.assertEqual(Company.query.count(), companies_before)
+            self.assertEqual(Job.query.count(), jobs_before)
+            self.assertEqual(InvoiceRecord.query.count(), invoices_before)
+            self.assertEqual(MarketingEvent.query.filter_by(
+                event_name="profit_check_viewed", source=f"profit-{unique}"
+            ).count(), 1)
+            self.assertEqual(MarketingEvent.query.filter_by(
+                event_name="profit_check_completed", source=f"profit-{unique}"
+            ).count(), 1)
+
+    def test_profit_check_trial_click_requires_a_completed_calculation(self):
+        response = self.client.get("/tools/job-profit-check/register")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith("/tools/job-profit-check"))
+
+    def test_profit_check_trial_click_is_measured_once(self):
+        unique = uuid.uuid4().hex[:10]
+        self.client.get(f"/tools/job-profit-check?utm_source=profit-click-{unique}")
+        self.client.post(
+            "/tools/job-profit-check",
+            data={
+                "job_pay": "685",
+                "estimated_hours": "4",
+                "travel_miles": "36",
+                "materials_cost": "45",
+                "platform_fee_percent": "10",
+                "helper_pay": "160",
+                "scope": "Replace and test the network switch.",
+                "payment_terms": "Net 14",
+            },
+        )
+        first = self.client.get("/tools/job-profit-check/register")
+        second = self.client.get("/tools/job-profit-check/register")
+        self.assertEqual(first.status_code, 302)
+        self.assertIn("/register?", first.location)
+        self.assertEqual(second.status_code, 302)
+        with app.app_context():
+            self.assertEqual(MarketingEvent.query.filter_by(
+                event_name="profit_check_registration_clicked",
+                source=f"profit-click-{unique}",
+            ).count(), 1)
+
     def test_growth_dashboard_excludes_internal_qa_sources(self):
         unique = uuid.uuid4().hex[:10]
         admin_email = f"{unique}@admin.test"
@@ -250,6 +325,7 @@ class GrowthFunnelTests(unittest.TestCase):
     def test_public_acquisition_surfaces_render(self):
         paths = [
             "/demo",
+            "/tools/job-profit-check",
             "/for/workmarket-contractors",
             "/for/field-nation-contractors",
             "/for/low-voltage-contractors",

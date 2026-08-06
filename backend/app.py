@@ -721,6 +721,54 @@ def demo_register():
     ))
 
 
+@app.route('/tools/job-profit-check', methods=['GET', 'POST'])
+def public_job_profit_check():
+    """Give contractors a useful pricing answer before asking for an account."""
+    _capture_attribution()
+    form_values = {
+        'job_pay': '685',
+        'estimated_hours': '4',
+        'travel_miles': '36',
+        'materials_cost': '45',
+        'platform_fee_percent': '10',
+        'helper_pay': '160',
+        'scope': 'Replace reception network switch, test every drop, and upload closeout photos.',
+        'payment_terms': 'Net 14 after approved closeout',
+    }
+    result = None
+    if request.method == 'POST':
+        form_values = {
+            key: request.form.get(key, '').strip()
+            for key in form_values
+        }
+        result = _acceptance_advice(form_values)
+        session['fieldbase_profit_check_completed'] = True
+        _record_marketing_event(
+            'profit_check_completed',
+            details={'verdict': result['verdict']},
+            once=True,
+        )
+    _record_marketing_event('profit_check_viewed', once=True)
+    return render_template(
+        'job_profit_check.html',
+        form_values=form_values,
+        result=result,
+    )
+
+
+@app.route('/tools/job-profit-check/register')
+def profit_check_register():
+    if not session.get('fieldbase_profit_check_completed'):
+        return redirect(url_for('public_job_profit_check'))
+    _record_marketing_event('profit_check_registration_clicked', once=True)
+    return redirect(url_for(
+        'register',
+        utm_source='job_profit_check',
+        utm_medium='product',
+        utm_campaign='profit_check_to_trial',
+    ))
+
+
 @app.route('/for/<slug>')
 def segment_page(slug):
     page = SEGMENT_PAGES.get(slug)
@@ -876,6 +924,7 @@ def sitemap_xml():
         '/guides/field-service-invoicing',
         '/guides/prevent-double-booking-field-technicians',
         '/tools/double-booking-cost-calculator',
+        '/tools/job-profit-check',
         '/templates/field-job-template',
         '/privacy',
         '/terms',
@@ -3623,6 +3672,11 @@ def growth_dashboard():
         ('demo_completed', 'Demo completions', 'visitor'),
         ('demo_registration_clicked', 'Trial clicks after demo', 'visitor'),
     ])
+    profit_check_funnel = build_funnel([
+        ('profit_check_viewed', 'Profit check views', 'visitor'),
+        ('profit_check_completed', 'Profit checks completed', 'visitor'),
+        ('profit_check_registration_clicked', 'Trial clicks after result', 'visitor'),
+    ])
 
     source_counts = {}
     for event in events:
@@ -3635,6 +3689,7 @@ def growth_dashboard():
         'growth.html',
         funnel=funnel,
         demo_funnel=demo_funnel,
+        profit_check_funnel=profit_check_funnel,
         source_counts=sorted(source_counts.items(), key=lambda item: item[1], reverse=True),
         generated_at=datetime.utcnow(),
     )

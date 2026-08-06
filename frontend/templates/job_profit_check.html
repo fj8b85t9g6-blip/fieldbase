@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free Field Job Profit Check — FieldBase</title>
+  <meta name="description" content="Check a field-service job's real profit, hourly earnings, platform fees, travel cost, and minimum price before you accept it.">
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:#172033; background:#f4f7fb; }
+    nav { min-height:64px; padding:14px 28px; background:#fff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; gap:18px; }
+    nav a { color:#17385f; text-decoration:none; font-weight:800; }
+    nav .trial { padding:9px 15px; border:1px solid #17385f; border-radius:8px; font-size:13px; }
+    main { max-width:1050px; margin:0 auto; padding:46px 20px 72px; }
+    .eyebrow { color:#2563eb; text-transform:uppercase; letter-spacing:.08em; font-size:12px; font-weight:850; text-align:center; }
+    h1 { max-width:760px; margin:10px auto 12px; color:#17385f; font-size:42px; line-height:1.08; letter-spacing:-1px; text-align:center; }
+    .intro { max-width:700px; margin:0 auto 30px; color:#5f6f84; font-size:17px; line-height:1.55; text-align:center; }
+    .layout { display:grid; grid-template-columns:1.1fr .9fr; gap:22px; align-items:start; }
+    .card { background:#fff; border:1px solid #dce6f0; border-radius:15px; padding:25px; box-shadow:0 7px 24px rgba(30,58,95,.07); }
+    .card h2 { color:#17385f; margin:0 0 6px; font-size:20px; }
+    .sub { color:#64748b; font-size:13px; line-height:1.45; margin:0 0 21px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field.full { grid-column:1 / -1; }
+    label { color:#475569; font-size:12px; font-weight:800; }
+    input, textarea { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:11px 12px; color:#172033; background:#fff; font:inherit; font-size:14px; }
+    input:focus, textarea:focus { border-color:#2563eb; outline:3px solid #dbeafe; }
+    textarea { min-height:78px; resize:vertical; }
+    button, .button { display:block; width:100%; margin-top:18px; border:0; border-radius:9px; padding:14px 18px; background:#17385f; color:#fff; font:inherit; font-weight:850; text-align:center; text-decoration:none; cursor:pointer; }
+    button:hover, .button:hover { background:#102b4b; }
+    .privacy { color:#7c8ba0; font-size:11px; line-height:1.45; text-align:center; margin:12px 0 0; }
+    .empty-result { min-height:420px; display:grid; align-content:center; text-align:center; color:#64748b; }
+    .empty-result .icon { font-size:40px; margin-bottom:12px; }
+    .empty-result strong { color:#17385f; font-size:18px; }
+    .verdict { display:inline-flex; padding:6px 10px; border-radius:999px; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; }
+    .verdict.strong { background:#dcfce7; color:#166534; }
+    .verdict.review { background:#fef3c7; color:#92400e; }
+    .verdict.decline { background:#fee2e2; color:#991b1b; }
+    .result-title { color:#17385f; font-size:25px; line-height:1.2; margin:14px 0 18px; }
+    .metrics { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+    .metric { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; }
+    .metric span { display:block; color:#64748b; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+    .metric strong { display:block; color:#17385f; font-size:23px; margin-top:5px; }
+    .warning-list { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+    .warning-list li { background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; color:#9a3412; padding:10px 11px; font-size:12px; line-height:1.4; }
+    .good { background:#ecfdf5; border:1px solid #bbf7d0; color:#166534; border-radius:8px; padding:11px; font-size:12px; }
+    .explain { color:#64748b; font-size:12px; line-height:1.5; margin:16px 0 0; }
+    .proof { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:22px 0 0; }
+    .proof div { background:#eef5ff; border:1px solid #dbeafe; border-radius:9px; padding:11px; color:#17385f; font-size:11px; font-weight:800; text-align:center; }
+    @media (max-width:780px) { h1 { font-size:33px; } .layout { grid-template-columns:1fr; } .empty-result { min-height:260px; } nav { padding:13px 17px; } }
+    @media (max-width:480px) { .grid, .metrics { grid-template-columns:1fr; } main { padding:34px 13px 55px; } .card { padding:20px; } .proof { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <nav><a href="/">FieldBase</a><a class="trial" href="/register">Start free trial</a></nav>
+  <main>
+    <div class="eyebrow">Free contractor tool · no account</div>
+    <h1>Know whether the job is worth taking before you drive there</h1>
+    <p class="intro">Enter the real pay, time, travel, platform fee, materials, and helper cost. FieldBase will show your estimated profit, hourly earnings, and minimum safe price.</p>
+
+    <div class="layout">
+      <section class="card">
+        <h2>Check this job</h2>
+        <p class="sub">Use the prefilled marketplace job or replace it with your own numbers.</p>
+        <form method="post" action="/tools/job-profit-check">
+          <div class="grid">
+            <div class="field"><label for="job_pay">Job pay ($)</label><input id="job_pay" name="job_pay" type="number" min="0" step="0.01" required value="{{ form_values.job_pay }}"></div>
+            <div class="field"><label for="estimated_hours">Total working hours</label><input id="estimated_hours" name="estimated_hours" type="number" min="0.25" step="0.25" required value="{{ form_values.estimated_hours }}"></div>
+            <div class="field"><label for="travel_miles">Round-trip miles</label><input id="travel_miles" name="travel_miles" type="number" min="0" step="1" value="{{ form_values.travel_miles }}"></div>
+            <div class="field"><label for="platform_fee_percent">Platform fee (%)</label><input id="platform_fee_percent" name="platform_fee_percent" type="number" min="0" max="100" step="0.1" value="{{ form_values.platform_fee_percent }}"></div>
+            <div class="field"><label for="materials_cost">Materials ($)</label><input id="materials_cost" name="materials_cost" type="number" min="0" step="0.01" value="{{ form_values.materials_cost }}"></div>
+            <div class="field"><label for="helper_pay">Helper / subcontractor pay ($)</label><input id="helper_pay" name="helper_pay" type="number" min="0" step="0.01" value="{{ form_values.helper_pay }}"></div>
+            <div class="field full"><label for="scope">Scope you were given</label><textarea id="scope" name="scope" placeholder="Paste the promised work">{{ form_values.scope }}</textarea></div>
+            <div class="field full"><label for="payment_terms">Payment terms</label><input id="payment_terms" name="payment_terms" value="{{ form_values.payment_terms }}" placeholder="Example: Net 14 after approved closeout"></div>
+          </div>
+          <button type="submit">Check job profit</button>
+          <p class="privacy">Your numbers are used for this calculation only. No account or credit card required.</p>
+        </form>
+      </section>
+
+      <aside class="card" aria-live="polite">
+        {% if result %}
+          <span class="verdict {{ result.verdict }}">{{ result.verdict }}</span>
+          {% if result.verdict == 'strong' %}<h2 class="result-title">This job clears the basic profit check.</h2>{% elif result.verdict == 'review' %}<h2 class="result-title">Review the price or terms before accepting.</h2>{% else %}<h2 class="result-title">This job may cost more than it is worth.</h2>{% endif %}
+          <div class="metrics">
+            <div class="metric"><span>Estimated profit</span><strong>${{ '%.2f'|format(result.estimated_profit) }}</strong></div>
+            <div class="metric"><span>Profit per hour</span><strong>${{ '%.2f'|format(result.effective_hourly) }}</strong></div>
+            <div class="metric" style="grid-column:1/-1"><span>Suggested minimum price</span><strong>${{ '%.2f'|format(result.suggested_minimum) }}</strong></div>
+          </div>
+          {% if result.warnings %}<ul class="warning-list">{% for warning in result.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% else %}<div class="good">No basic pricing or scope warnings found.</div>{% endif %}
+          <p class="explain">FieldBase can keep this calculation attached to the job, lock the original scope, collect change-order approval, and build the closeout proof needed to invoice.</p>
+          <a class="button" href="/tools/job-profit-check/register">Protect and track real jobs free for 14 days</a>
+        {% else %}
+          <div class="empty-result"><div class="icon">↗</div><strong>Your real job economics appear here.</strong><p>Most low offers look acceptable until travel, platform fees, materials, and helper pay are included.</p></div>
+        {% endif %}
+      </aside>
+    </div>
+    <div class="proof"><div>Before accepting: profit check</div><div>During work: locked scope</div><div>After work: proof package + invoice</div></div>
+  </main>
+</body>
+</html>
